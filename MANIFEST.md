@@ -1,0 +1,22 @@
+# Manifest du package OSYR v7
+
+- `00_lancer_workflow_complet.R` — 2,938 octets
+- `01_analyse_osyr_base_et_modeles.R` — 109,560 octets
+- `02_generer_rapport_word.R` — 75,107 octets
+- `03_analyses_complementaires_wp2_30062026.R` — 64,931 octets
+- `04_generer_presentation_powerpoint.R` — 22,504 octets
+- `99_session_info.R` — 819 octets
+- `CHANGELOG.md` — 3,169 octets
+- `CORRECTIF_V4_03072026.md` — 519 octets
+- `CORRECTIF_V5_03072026.md` — 797 octets
+- `CORRECTIF_V6_03072026.md` — 617 octets
+- `DEMARRAGE_RAPIDE.md` — 716 octets
+- `GUIDE_WORKFLOW_DETAILLE.md` — 3,475 octets
+- `MANIFEST.md` — 899 octets
+- `MATRICE_COUVERTURE_REMARQUES_WP2.md` — 3,865 octets
+- `NOTES_METHODOLOGIQUES.md` — 2,440 octets
+- `README.md` — 3,957 octets
+- `TROUBLESHOOTING.md` — 3,093 octets
+- `data/README_DONNEES.md` — 261 octets
+- `docs/Pistes_analyse_CR_30062026.docx` — 22,503 octets
+- `docs/Pistes_analyse_CR_30062026.md` — 5,957 octets
