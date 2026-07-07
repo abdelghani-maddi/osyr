@@ -1,9 +1,9 @@
 # =============================================================================
 # SCRIPT 00 — LANCER LE WORKFLOW COMPLET OSYR
-# Version v3 commentée — 30/06/2026
+# Version v3 — 06/07/2026
 # =============================================================================
 # Ce script est le point d'entrée recommandé.
-# Il exécute les scripts dans le bon ordre, avec des options simples.
+# Il exécute les scripts dans le bon ordre.
 #
 # Utilisation :
 #   1) Ouvrir RStudio à la racine de ce dossier.

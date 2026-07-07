@@ -1,85 +1,36 @@
 # =============================================================================
 # SCRIPT 01 — ANALYSE PRINCIPALE OSYR
-# =============================================================================
-
-# Version v3 commentée — 30/06/2026
+# Version v14 — 07/07/2026
 #
-# Ce script est volontairement autonome : il part des deux fichiers fournis
-# par OpinionWay et construit toutes les sorties de base utilisées ensuite
-# par le rapport Word, les analyses complémentaires et la présentation PPT.
+# OBJECTIF
+#   Produire une base analytique propre ET intégrer dès le socle les sorties
+#   demandées après la réunion WP2 :
+#   - conserver toutes les disciplines détaillées, pas seulement les 4 agrégées ;
+#   - récupérer robustement les libellés de disciplines depuis la datamap ;
+#   - documenter explicitement les deux niveaux de discipline ;
+#   - produire des figures pour toutes les disciplines détaillées ;
+#   - produire les formats longs nécessaires aux tests du script 03 ;
+#   - produire les premiers scores synthétiques ;
+#   - produire une distribution détaillée des dispositifs Q8, sans agrégation ;
+#   - corriger les visualisations Q8 par langue et scores par discipline ;
+#   - ajouter des visualisations complémentaires robustes et éviter les figures vides.
 #
-# Ordre logique :
-#   1. fonctions utilitaires ;
-#   2. lecture base + datamap ;
-#   3. recodages robustes ;
-#   4. contrôles qualité ;
-#   5. descriptifs pondérés ;
-#   6. tables longues des batteries ;
-#   7. scores synthétiques ;
-#   8. modèles ajustés ;
-#   9. analyse textuelle Q3 ;
-#  10. exports.
-#
-# Les analyses sont descriptives / associatives. Les écarts exposés/non exposés
-# ne doivent pas être interprétés comme des effets causaux des formations.
-# =============================================================================
-# Rôle dans le workflow
-#   Ce script est le socle de l'analyse. Il lit la base corrigée et la datamap,
-#   nettoie les variables, construit les variables analytiques, produit les
-#   descriptifs, les figures, les scores, les modèles ajustés et l'analyse
-#   textuelle des trois mots associés à la science ouverte.
-#
-# À lancer seul si besoin :
-#   source("01_analyse_osyr_base_et_modeles.R")
-#
-# À lancer avec tout le workflow :
-#   source("00_lancer_workflow_complet.R")
-#
-# Données attendues :
+# ENTRÉES
 #   data/BJ30232 - BDD V2.csv
 #   data/BJ30232 - DATAMAP V2.xlsx
 #
-# Sortie principale :
+# SORTIES
 #   outputs_osyr_v2_final/
+#     ├── data_clean/
+#     ├── tables/
+#     ├── figures/
+#     ├── models/
+#     ├── text_analysis/
+#     └── diagnostics/
 #
-# Note d'interprétation :
-#   Les résultats sont descriptifs et associatifs. Ils ne doivent pas être
-#   présentés comme des effets causaux des formations ou dispositifs.
-# =============================================================================
-
-# =============================================================================
-# OSYR — Workflow final V2 corrigée
-# Auteur : Abdelghani Maddi / projet OSYR
-# Version : 2026-06-19 — finale, esthétique, commentée et interprétable
-#
-# Objectif
-#   Analyse complète de la base corrigée : BJ30232 - BDD V2.csv
-#   + BJ30232 - DATAMAP V2.xlsx
-#
-# Ce script produit :
-#   1) une base analytique propre, documentée et robuste aux accents/encodages ;
-#   2) des contrôles qualité et des vérifications de cohérence ;
-#   3) des descriptifs pondérés ;
-#   4) des comparaisons fines entre doctorants exposés et non exposés ;
-#   5) des nuances par année de thèse, discipline, établissement et langue du questionnaire ;
-#   6) des scores synthétiques et des modèles ajustés ;
-#   7) des interactions exposition × année, exposition × discipline, exposition × langue ;
-#   8) une analyse textuelle profonde des trois mots associés à la science ouverte ;
-#   9) des graphiques haute résolution, plus lisibles et plus éditoriaux.
-#
-# Remarques importantes
-#   - Les analyses sont pondérées par la variable Poids.
-#   - Les comparaisons sont descriptives et associatives, pas causales.
-#   - La variable RESPONDENT_LANGUAGE indique la langue du questionnaire.
-#     Elle peut être utilisée comme proxy prudent d'un profil international,
-#     mais ne doit pas être interprétée comme une nationalité.
-#   - L'année de thèse est recodée à partir du code numérique Q1, et non
-#     à partir des libellés de la datamap, afin d'éviter les problèmes
-#     d'encodage qui faisaient disparaître certaines années dans les graphiques.
-# =============================================================================
-
-# =============================================================================
-# 0. Préparation
+# NOTE MÉTHODOLOGIQUE
+#   Les analyses sont descriptives et associatives. Les différences entre
+#   doctorants exposés et non exposés ne sont pas des effets causaux (même si on peut être tenté ;) ).
 # =============================================================================
 
 options(
@@ -89,32 +40,34 @@ options(
   survey.lonely.psu = "adjust"
 )
 
+# -----------------------------------------------------------------------------
+# 0. Packages
+# -----------------------------------------------------------------------------
+
 install_if_missing <- function(pkgs) {
   missing <- pkgs[!vapply(pkgs, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1))]
-  if (length(missing) > 0) {
-    message("Packages manquants : ", paste(missing, collapse = ", "))
-    install.packages(missing, dependencies = TRUE)
-  }
+  if (length(missing) > 0) install.packages(missing, dependencies = TRUE)
 }
 
 pkgs <- c(
-  "tidyverse", "readxl", "janitor", "survey", "srvyr", "broom",
-  "scales", "forcats", "stringi", "tidytext", "stopwords",
-  "igraph", "ggraph", "ggrepel", "patchwork", "openxlsx", "glue",
-  "rlang"
+  "tidyverse", "readxl", "janitor", "survey", "broom",
+  "scales", "forcats", "stringi", "tidytext", "igraph",
+  "ggraph", "ggrepel", "openxlsx", "glue", "fs"
 )
 
 install_if_missing(pkgs)
 invisible(lapply(pkgs, library, character.only = TRUE))
 
-# Chemins : le script peut être placé à la racine du projet RStudio.
+# -----------------------------------------------------------------------------
+# 1. Chemins
+# -----------------------------------------------------------------------------
+
 data_dir <- "data"
-out_dir  <- "outputs_osyr_v2_final"
+out_dir <- "outputs_osyr_v2_final"
 
 bdd_file <- file.path(data_dir, "BJ30232 - BDD V2.csv")
 map_file <- file.path(data_dir, "BJ30232 - DATAMAP V2.xlsx")
 
-# Fallback si les fichiers sont dans le dossier courant.
 if (!file.exists(bdd_file)) bdd_file <- "BJ30232 - BDD V2.csv"
 if (!file.exists(map_file)) map_file <- "BJ30232 - DATAMAP V2.xlsx"
 
@@ -125,11 +78,11 @@ dirs <- file.path(
   out_dir,
   c("data_clean", "tables", "figures", "models", "text_analysis", "diagnostics")
 )
-purrr::walk(dirs, dir.create, recursive = TRUE, showWarnings = FALSE)
+purrr::walk(dirs, fs::dir_create)
 
-# =============================================================================
-# 1. Fonctions générales
-# =============================================================================
+# -----------------------------------------------------------------------------
+# 2. Fonctions générales
+# -----------------------------------------------------------------------------
 
 fix_text <- function(x) {
   x <- as.character(x)
@@ -151,47 +104,77 @@ short_label <- function(x) {
   stringr::str_squish(x)
 }
 
-clean_mention <- function(x) {
+clean_ascii <- function(x) {
   x |>
     fix_text() |>
-    stringr::str_to_lower(locale = "fr") |>
     stringi::stri_trans_general("Latin-ASCII") |>
-    stringr::str_replace_all("[’'`´]", " ") |>
-    stringr::str_replace_all("[^[:alnum:]\\s\\-]", " ") |>
-    stringr::str_replace_all("\\s+", " ") |>
+    stringr::str_to_lower(locale = "fr") |>
     stringr::str_squish()
-}
-
-w_sum <- function(x, w) {
-  sum(x * w, na.rm = TRUE)
 }
 
 w_mean <- function(x, w) {
   ok <- !is.na(x) & !is.na(w)
   if (!any(ok)) return(NA_real_)
-  sum(x[ok] * w[ok]) / sum(w[ok])
+  sum(as.numeric(x[ok]) * as.numeric(w[ok]), na.rm = TRUE) / sum(as.numeric(w[ok]), na.rm = TRUE)
 }
 
-w_prop <- function(condition, w) {
-  ok <- !is.na(condition) & !is.na(w)
-  if (!any(ok)) return(NA_real_)
-  sum(as.numeric(condition[ok]) * w[ok]) / sum(w[ok])
-}
+w_prop <- function(condition, w) w_mean(as.numeric(condition), w)
 
 safe_pct <- function(x, accuracy = 0.1) {
   scales::percent(x, accuracy = accuracy, decimal.mark = ",")
 }
 
-pp <- function(x) round(100 * x, 1)
+write_table <- function(x, name, subdir = "tables") {
+  readr::write_csv(x, file.path(out_dir, subdir, paste0(name, ".csv")))
+  invisible(x)
+}
+
+write_model <- function(x, name) {
+  readr::write_csv(x, file.path(out_dir, "models", paste0(name, ".csv")))
+  invisible(x)
+}
+
+save_plot <- function(plot, filename, width = 12, height = 7.2) {
+  ggplot2::ggsave(
+    filename = file.path(out_dir, "figures", filename),
+    plot = plot,
+    width = width,
+    height = height,
+    dpi = 340,
+    bg = "white"
+  )
+  invisible(file.path(out_dir, "figures", filename))
+}
+
+has_rows <- function(x) {
+  is.data.frame(x) && nrow(x) > 0 && ncol(x) > 0
+}
+
+# Sauvegarde uniquement si la table utilisée pour le graphique contient des lignes.
+# Cela évite les figures blanches : titre + vide.
+save_plot_if_data <- function(plot, data, filename, width = 12, height = 7.2, message_if_empty = NULL) {
+  if (!has_rows(data)) {
+    if (!is.null(message_if_empty)) warning(message_if_empty)
+    return(invisible(NULL))
+  }
+  save_plot(plot, filename, width = width, height = height)
+}
+
+safe_max_pct <- function(x, multiplier = 1.18, floor = 0.05, ceiling = 1) {
+  m <- suppressWarnings(max(x, na.rm = TRUE))
+  if (!is.finite(m) || is.na(m)) return(floor)
+  min(ceiling, max(floor, m * multiplier))
+}
 
 row_prop_codes <- function(data, vars, yes_codes, no_codes = NULL) {
   if (length(vars) == 0) return(rep(NA_real_, nrow(data)))
-  mat <- data[, vars, drop = TRUE]
+  mat <- data[, vars, drop = FALSE]
   mat <- as.data.frame(lapply(mat, function(x) {
+    x_num <- suppressWarnings(as.numeric(x))
     dplyr::case_when(
-      x %in% yes_codes ~ 1,
-      !is.null(no_codes) & x %in% no_codes ~ 0,
-      is.null(no_codes) & !is.na(x) & !(x %in% yes_codes) ~ 0,
+      x_num %in% yes_codes ~ 1,
+      !is.null(no_codes) & x_num %in% no_codes ~ 0,
+      is.null(no_codes) & !is.na(x_num) & !(x_num %in% yes_codes) ~ 0,
       TRUE ~ NA_real_
     )
   }))
@@ -200,7 +183,13 @@ row_prop_codes <- function(data, vars, yes_codes, no_codes = NULL) {
   out
 }
 
-# Thème graphique OSYR : lisible, calme, présentable.
+existing_vars <- function(vars, data) {
+  vars <- vars[!is.na(vars)]
+  vars <- vars[vars != ""]
+  vars <- unique(vars)
+  vars[vars %in% names(data)]
+}
+
 osyr_palette <- c(
   navy = "#17324D",
   blue = "#3A86FF",
@@ -216,9 +205,6 @@ osyr_palette <- c(
   light = "#F7F9FB"
 )
 
-# Important : on utilise unname() pour éviter que les noms internes
-# du vecteur osyr_palette perturbent scale_*_manual(). Sans cela,
-# ggplot peut afficher les couleurs par défaut en gris.
 exposure_colors <- c(
   "Aucun dispositif" = unname(osyr_palette["coral"]),
   "Autoformation / autre seulement" = unname(osyr_palette["orange"]),
@@ -226,190 +212,41 @@ exposure_colors <- c(
   "Indéterminé" = "#B8C0CC"
 )
 
-language_colors <- c(
-  "Questionnaire en français" = unname(osyr_palette["navy"]),
-  "Questionnaire en anglais" = unname(osyr_palette["cyan"]),
-  "Langue non renseignée" = "#B8C0CC"
-)
-
-score_colors <- c(
-  "Activités de recherche déjà réalisées" = unname(osyr_palette["blue"]),
-  "Bénéfices scientifiques perçus" = unname(osyr_palette["green"]),
-  "Contraintes institutionnelles/économiques perçues" = unname(osyr_palette["orange"]),
-  "Environnement perçu comme incitatif" = unname(osyr_palette["teal"]),
-  "Environnement perçu comme un frein" = unname(osyr_palette["rose"]),
-  "Intentions de pratiques ouvertes" = unname(osyr_palette["purple"]),
-  "Notions et outils bien connus" = unname(osyr_palette["teal"]),
-  "Notions et outils déjà utilisés" = unname(osyr_palette["blue"]),
-  "Risques individuels perçus" = unname(osyr_palette["coral"])
-)
-
 theme_osyr <- function(base_size = 12) {
   ggplot2::theme_minimal(base_size = base_size, base_family = "sans") +
     ggplot2::theme(
       plot.title.position = "plot",
-      plot.title = ggplot2::element_text(face = "bold", size = base_size + 6, color = osyr_palette["navy"], lineheight = 1.05),
-      plot.subtitle = ggplot2::element_text(size = base_size + 1.5, color = "#475467", margin = ggplot2::margin(b = 12)),
-      plot.caption = ggplot2::element_text(size = base_size - 2, color = "#667085", hjust = 0, margin = ggplot2::margin(t = 12)),
-      axis.title = ggplot2::element_text(color = "#344054"),
+      plot.title = ggplot2::element_text(
+        face = "bold", size = base_size + 5,
+        color = osyr_palette["navy"], lineheight = 1.05
+      ),
+      plot.subtitle = ggplot2::element_text(
+        size = base_size + 1,
+        color = "#475467",
+        margin = ggplot2::margin(b = 12)
+      ),
+      plot.caption = ggplot2::element_text(
+        size = base_size - 2,
+        color = "#667085",
+        hjust = 0
+      ),
       axis.text = ggplot2::element_text(color = "#344054"),
+      axis.title = ggplot2::element_text(color = "#344054"),
       panel.grid.major.y = ggplot2::element_blank(),
       panel.grid.major.x = ggplot2::element_line(color = "#EAECF0", linewidth = 0.4),
       panel.grid.minor = ggplot2::element_blank(),
       legend.position = "bottom",
       legend.title = ggplot2::element_blank(),
-      legend.text = ggplot2::element_text(size = base_size - 1),
-      strip.text = ggplot2::element_text(face = "bold", color = osyr_palette["navy"], size = base_size),
+      strip.text = ggplot2::element_text(face = "bold", color = osyr_palette["navy"]),
       strip.background = ggplot2::element_rect(fill = "#F2F4F7", color = NA),
       plot.background = ggplot2::element_rect(fill = "white", color = NA),
       panel.background = ggplot2::element_rect(fill = "white", color = NA)
     )
 }
 
-save_plot <- function(plot, filename, width = 12, height = 8) {
-  ggplot2::ggsave(
-    filename = file.path(out_dir, "figures", filename),
-    plot = plot,
-    width = width,
-    height = height,
-    dpi = 340,
-    bg = "white"
-  )
-}
-
-write_table <- function(x, name, subdir = "tables") {
-  readr::write_csv(x, file.path(out_dir, subdir, paste0(name, ".csv")))
-  invisible(x)
-}
-
-write_model <- function(x, name) {
-  readr::write_csv(x, file.path(out_dir, "models", paste0(name, ".csv")))
-  invisible(x)
-}
-
-weighted_frequency <- function(data, var, weight = ".weight") {
-  data |>
-    dplyr::mutate(category = .data[[var]]) |>
-    dplyr::filter(!is.na(category), !is.na(.data[[weight]])) |>
-    dplyr::group_by(category) |>
-    dplyr::summarise(
-      n = dplyr::n(),
-      weighted_n = sum(.data[[weight]], na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(
-      pct_w = weighted_n / sum(weighted_n),
-      pct_w_label = safe_pct(pct_w)
-    ) |>
-    dplyr::arrange(dplyr::desc(pct_w))
-}
-
-cross_weighted <- function(data, row_var, col_var, weight = ".weight") {
-  data |>
-    dplyr::mutate(
-      row_category = .data[[row_var]],
-      col_category = .data[[col_var]]
-    ) |>
-    dplyr::filter(!is.na(row_category), !is.na(col_category), !is.na(.data[[weight]])) |>
-    dplyr::group_by(row_category, col_category) |>
-    dplyr::summarise(
-      n = dplyr::n(),
-      weighted_n = sum(.data[[weight]], na.rm = TRUE),
-      .groups = "drop_last"
-    ) |>
-    dplyr::mutate(
-      pct_row = weighted_n / sum(weighted_n),
-      pct_row_label = safe_pct(pct_row)
-    ) |>
-    dplyr::ungroup()
-}
-
-# Retire les modalités quasi nulles avant représentation.
-# Utile pour éviter des légendes trop lourdes, par exemple une modalité
-# "Indéterminé" présente dans les niveaux du facteur mais absente du graphique.
-drop_small_modalities <- function(df, var_modality, var_value, threshold = 0.005) {
-  df |>
-    dplyr::group_by(.data[[var_modality]]) |>
-    dplyr::mutate(max_value = max(.data[[var_value]], na.rm = TRUE)) |>
-    dplyr::ungroup() |>
-    dplyr::filter(max_value >= threshold) |>
-    dplyr::select(-max_value)
-}
-
-# Petit dictionnaire d'aide à l'interprétation des coefficients.
-model_interpretation <- function(estimate_pp, conf_low_pp, conf_high_pp, p_value) {
-  dplyr::case_when(
-    !is.na(p_value) & p_value < 0.05 & conf_low_pp > 0 & estimate_pp >= 8 ~ "Association positive forte",
-    !is.na(p_value) & p_value < 0.05 & conf_low_pp > 0 & estimate_pp >= 3 ~ "Association positive modérée",
-    !is.na(p_value) & p_value < 0.05 & conf_low_pp > 0 ~ "Association positive faible",
-    !is.na(p_value) & p_value < 0.05 & conf_high_pp < 0 ~ "Association négative claire",
-    TRUE ~ "Pas d'association claire"
-  )
-}
-
-
-make_item_long <- function(data, vars, value_name, item_map, context_vars) {
-  data |>
-    dplyr::select(dplyr::any_of(context_vars), dplyr::all_of(vars)) |>
-    tidyr::pivot_longer(
-      cols = dplyr::all_of(vars),
-      names_to = "item",
-      values_to = value_name
-    ) |>
-    dplyr::left_join(item_map, by = "item") |>
-    dplyr::mutate(
-      item_label = dplyr::coalesce(item_label, item),
-      item_label = stringr::str_wrap(item_label, width = 62)
-    )
-}
-
-extract_multi <- function(data, base, context_vars) {
-  # Transforme les questions multiples Q8_M1, Q8_M2... en format long.
-  # base doit être en noms nettoyés : "q8", "q14_2", "q6_5", etc.
-  cols <- names(data) |> stringr::str_subset(paste0("^", base, "_m\\d+$"))
-  other_cols <- names(data) |> stringr::str_subset(paste0("^o_", base, "_m\\d+$"))
-
-  if (length(cols) == 0) return(tibble::tibble())
-
-  long <- data |>
-    dplyr::select(dplyr::any_of(context_vars), dplyr::all_of(cols), dplyr::any_of(other_cols)) |>
-    tidyr::pivot_longer(
-      cols = dplyr::all_of(cols),
-      names_to = "slot",
-      values_to = "code"
-    ) |>
-    dplyr::mutate(
-      base = base,
-      slot_number = readr::parse_number(slot),
-      code = as.numeric(code)
-    )
-
-  if (length(other_cols) > 0) {
-    other_long <- data |>
-      dplyr::select(dplyr::any_of(context_vars), dplyr::all_of(other_cols)) |>
-      tidyr::pivot_longer(
-        cols = dplyr::all_of(other_cols),
-        names_to = "other_slot",
-        values_to = "other_text"
-      ) |>
-      dplyr::mutate(
-        slot_number = readr::parse_number(other_slot),
-        other_text = fix_text(other_text)
-      ) |>
-      dplyr::select(dplyr::any_of(context_vars), slot_number, other_text)
-
-    long <- long |>
-      dplyr::left_join(other_long, by = c(context_vars, "slot_number"))
-  } else {
-    long <- long |> dplyr::mutate(other_text = NA_character_)
-  }
-
-  long |> dplyr::filter(!is.na(code))
-}
-
-# =============================================================================
-# 2. Lecture de la base et de la datamap
-# =============================================================================
+# -----------------------------------------------------------------------------
+# 3. Lecture base et datamap
+# -----------------------------------------------------------------------------
 
 message("Lecture de la base : ", bdd_file)
 df_raw <- readr::read_delim(
@@ -419,7 +256,6 @@ df_raw <- readr::read_delim(
   guess_max = 10000,
   show_col_types = FALSE
 )
-
 names(df_raw) <- janitor::make_clean_names(names(df_raw))
 df_raw <- df_raw |> dplyr::mutate(dplyr::across(where(is.character), fix_text))
 
@@ -459,46 +295,262 @@ answer_labels <- datamap_ff |>
 
 item_map <- question_map |> dplyr::select(item, question_label, item_label)
 
-readr::write_csv(question_map, file.path(out_dir, "data_clean", "question_map_v2.csv"))
-readr::write_csv(answer_labels, file.path(out_dir, "data_clean", "answer_labels_v2.csv"))
+write_table(question_map, "question_map_v2", subdir = "data_clean")
+write_table(answer_labels, "answer_labels_v2", subdir = "data_clean")
 
-# =============================================================================
-# 3. Construction de la base analytique
-# =============================================================================
+# -----------------------------------------------------------------------------
+# 3bis. Récupération robuste des libellés de modalités
+# -----------------------------------------------------------------------------
+# La datamap peut varier selon les exports : parfois les modalités Q2 sont bien
+# sous base == "q2", parfois elles sont rattachées à un nom plus long, ou les
+# colonnes s'appellent autrement. Les fonctions ci-dessous évitent de perdre les
+# libellés des disciplines et prévoient un fichier manuel de secours.
 
-weight_var <- "poids"
-stopifnot(weight_var %in% names(df_raw))
+label_tbl <- function(base_name) {
+  answer_labels |>
+    dplyr::filter(base == base_name) |>
+    dplyr::select(code, value) |>
+    dplyr::filter(!is.na(code), !is.na(value)) |>
+    dplyr::distinct(code, value)
+}
+
+read_manual_labels <- function(path) {
+  if (!file.exists(path)) return(tibble::tibble())
+
+  first_line <- readLines(path, n = 1, warn = FALSE)
+  delim <- if (stringr::str_detect(first_line, ";")) ";" else ","
+
+  manual <- readr::read_delim(path, delim = delim, show_col_types = FALSE)
+  names(manual) <- janitor::make_clean_names(names(manual))
+
+  code_col <- names(manual)[stringr::str_detect(names(manual), "^code$|q2|discipline_code|modalite")]
+  label_col <- names(manual)[stringr::str_detect(names(manual), "label|libelle|discipline_detail|discipline|device|dispositif|formation|value|modalite")]
+
+  # Éviter de prendre la même colonne pour code et label.
+  label_col <- setdiff(label_col, code_col)
+
+  if (length(code_col) == 0 || length(label_col) == 0) {
+    stop(
+      "Le fichier manuel ", path, " doit contenir une colonne de code et une colonne de libellé.\n",
+      "Exemple attendu : code;discipline_detail"
+    )
+  }
+
+  manual |>
+    dplyr::transmute(
+      code = suppressWarnings(as.numeric(.data[[code_col[1]]])),
+      value = fix_text(.data[[label_col[1]]])
+    ) |>
+    dplyr::filter(!is.na(code), !is.na(value), value != "") |>
+    dplyr::distinct(code, value)
+}
+
+extract_modal_labels <- function(base_name, observed_codes = NULL, semantic_hint = NULL, manual_file = NULL) {
+  # 1. Fichier manuel prioritaire, si fourni.
+  if (!is.null(manual_file) && file.exists(manual_file)) {
+    out <- read_manual_labels(manual_file)
+    attr(out, "source") <- paste0("manual:", manual_file)
+    return(out)
+  }
+
+  observed_codes <- suppressWarnings(as.numeric(observed_codes))
+  observed_codes <- sort(unique(observed_codes[!is.na(observed_codes)]))
+
+  candidates <- list()
+
+  # 2. Cas standard : base exactement égale au nom attendu.
+  candidates[["base_exact"]] <- answer_labels |>
+    dplyr::filter(base == base_name) |>
+    dplyr::select(code, value)
+
+  # 3. Cas plus souple : base commençant par q2 ou contenant le nom.
+  candidates[["base_regex"]] <- answer_labels |>
+    dplyr::filter(stringr::str_detect(base, paste0("^", base_name, "($|_)|", base_name))) |>
+    dplyr::select(code, value)
+
+  # 4. Cas sémantique : on cherche "discipline" dans name/label/value/ident.
+  if (!is.null(semantic_hint)) {
+    candidates[["semantic"]] <- datamap_ff |>
+      dplyr::mutate(
+        search_blob = clean_ascii(paste(ident, type, name, label, value, sep = " "))
+      ) |>
+      dplyr::filter(stringr::str_detect(search_blob, semantic_hint)) |>
+      dplyr::transmute(code = suppressWarnings(as.numeric(code)), value = fix_text(value))
+  }
+
+  out <- dplyr::bind_rows(candidates, .id = "source") |>
+    dplyr::filter(!is.na(code), !is.na(value), value != "") |>
+    dplyr::mutate(
+      value_clean = clean_ascii(value),
+      code_chr = as.character(code)
+    ) |>
+    # Retirer les faux libellés qui ne sont que les codes.
+    dplyr::filter(value_clean != code_chr) |>
+    dplyr::select(source, code, value)
+
+  if (length(observed_codes) > 0) {
+    out <- out |> dplyr::filter(code %in% observed_codes)
+  }
+
+  # Si plusieurs candidats existent pour un même code, on garde le libellé le
+  # plus informatif : source exacte d'abord, puis libellé le plus long.
+  out <- out |>
+    dplyr::mutate(
+      source_priority = dplyr::case_when(
+        source == "base_exact" ~ 1,
+        source == "base_regex" ~ 2,
+        source == "semantic" ~ 3,
+        TRUE ~ 9
+      ),
+      label_length = stringr::str_length(value)
+    ) |>
+    dplyr::arrange(code, source_priority, dplyr::desc(label_length)) |>
+    dplyr::group_by(code) |>
+    dplyr::slice(1) |>
+    dplyr::ungroup() |>
+    dplyr::select(code, value, source)
+
+  attr(out, "source") <- if (nrow(out) > 0) paste(unique(out$source), collapse = "+") else "not_found"
+  out
+}
+
+label_from_map <- function(x, labels, fallback_prefix = "Code") {
+  x_num <- suppressWarnings(as.numeric(x))
+
+  if (nrow(labels) == 0 || !all(c("code", "value") %in% names(labels))) {
+    return(ifelse(is.na(x_num), NA_character_, paste(fallback_prefix, x_num)))
+  }
+
+  out <- labels$value[match(x_num, labels$code)]
+  out <- fix_text(out)
+  out <- ifelse(is.na(out) & !is.na(x_num), paste(fallback_prefix, x_num), out)
+  out
+}
+
+validate_q2_labels <- function(q2_labels, observed_codes) {
+  observed_codes <- sort(unique(suppressWarnings(as.numeric(observed_codes))))
+  observed_codes <- observed_codes[!is.na(observed_codes)]
+
+  diagnostics <- tibble::tibble(
+    observed_code = observed_codes,
+    recovered_label = q2_labels$value[match(observed_codes, q2_labels$code)],
+    label_found = !is.na(recovered_label)
+  )
+
+  write_table(diagnostics, "q2_discipline_labels_diagnostics", subdir = "diagnostics")
+
+  if (any(!diagnostics$label_found)) {
+    template <- diagnostics |>
+      dplyr::transmute(
+        code = observed_code,
+        discipline_detail = dplyr::coalesce(recovered_label, "")
+      )
+
+    write_table(template, "q2_discipline_labels_template_to_complete", subdir = "diagnostics")
+
+    warning(
+      "Certains libellés de discipline Q2 n'ont pas été récupérés automatiquement.\n",
+      "Un modèle à compléter a été créé : outputs_osyr_v2_final/diagnostics/q2_discipline_labels_template_to_complete.csv\n",
+      "Vous pouvez le copier en data/q2_discipline_labels.csv puis relancer le script 01."
+    )
+  }
+
+  invisible(diagnostics)
+}
+
+# -----------------------------------------------------------------------------
+# 4. Construction de la base analytique
+# -----------------------------------------------------------------------------
+
+stopifnot("poids" %in% names(df_raw))
 stopifnot("respondent_language" %in% names(df_raw))
 stopifnot(all(c("rs1", "q1", "q2") %in% names(df_raw)))
 
-label_tbl <- function(base_name) {
-  answer_labels |> dplyr::filter(base == base_name) |> dplyr::select(code, value)
-}
-
-label_from_map <- function(x, labels) {
-  out <- labels$value[match(as.numeric(x), labels$code)]
-  fix_text(out)
-}
-
 rs1_labels <- label_tbl("rs1")
-q2_labels  <- label_tbl("q2")
+
+# Récupération robuste des libellés de disciplines.
+# Si l'auto-détection échoue, créer le fichier :
+#   data/q2_discipline_labels.csv
+# avec deux colonnes :
+#   code;discipline_detail
+q2_observed_codes <- sort(unique(suppressWarnings(as.numeric(df_raw$q2))))
+q2_labels <- extract_modal_labels(
+  base_name = "q2",
+  observed_codes = q2_observed_codes,
+  semantic_hint = "disciplin|discipline|field|domaine",
+  manual_file = file.path(data_dir, "q2_discipline_labels.csv")
+)
+
+write_table(q2_labels, "q2_discipline_labels_used", subdir = "diagnostics")
+validate_q2_labels(q2_labels, q2_observed_codes)
 
 q8_cols <- names(df_raw) |> stringr::str_subset("^q8_m\\d+$")
 stopifnot(length(q8_cols) > 0)
 
-# Recodage robuste de l'année : à partir de Q1 numérique et non du libellé.
-# Cela évite le problème observé dans le graphique où seule la 1re année apparaissait.
+q8_codes_by_row <- df_raw |>
+  dplyr::select(dplyr::all_of(q8_cols)) |>
+  purrr::pmap(function(...) {
+    vals <- c(...)
+    vals <- vals[!is.na(vals)]
+    unique(suppressWarnings(as.numeric(vals)))
+  })
+
+# Récupération robuste des libellés des dispositifs Q8.
+# Priorité à un fichier manuel si besoin :
+#   data/q8_device_labels.csv
+# Format attendu :
+#   code;device_label
+q8_observed_codes <- sort(unique(unlist(q8_codes_by_row)))
+q8_observed_codes <- q8_observed_codes[!is.na(q8_observed_codes)]
+
+q8_labels <- extract_modal_labels(
+  base_name = "q8",
+  observed_codes = q8_observed_codes,
+  semantic_hint = "dispositif|formation|mooc|autoformation|atelier|seminaire|module|stage|webinaire|presentiel|distanciel",
+  manual_file = file.path(data_dir, "q8_device_labels.csv")
+)
+
+write_table(q8_labels, "q8_device_labels_used", subdir = "diagnostics")
+
+q8_label_diagnostics <- tibble::tibble(
+  observed_code = q8_observed_codes,
+  recovered_label = q8_labels$value[match(q8_observed_codes, q8_labels$code)],
+  label_found = !is.na(recovered_label)
+)
+
+write_table(q8_label_diagnostics, "q8_device_labels_diagnostics", subdir = "diagnostics")
+
+if (any(!q8_label_diagnostics$label_found)) {
+  q8_template <- q8_label_diagnostics |>
+    dplyr::transmute(
+      code = observed_code,
+      device_label = dplyr::coalesce(recovered_label, "")
+    )
+
+  write_table(q8_template, "q8_device_labels_template_to_complete", subdir = "diagnostics")
+
+  warning(
+    "Certains libellés de dispositifs Q8 n'ont pas été récupérés automatiquement.\n",
+    "Un modèle à compléter a été créé : outputs_osyr_v2_final/diagnostics/q8_device_labels_template_to_complete.csv\n",
+    "Vous pouvez le copier en data/q8_device_labels.csv puis relancer le script 01."
+  )
+}
+
 df <- df_raw |>
   dplyr::mutate(
     respondent_id = dplyr::row_number(),
-    .weight = as.numeric(.data[[weight_var]]),
+    .weight = as.numeric(poids),
+    weight_none = 1,
+
     language_group = dplyr::case_when(
       respondent_language == "en" ~ "Questionnaire en anglais",
       respondent_language == "fr" ~ "Questionnaire en français",
       TRUE ~ "Langue non renseignée"
     ),
-    institution = label_from_map(rs1, rs1_labels),
-    year_code = as.numeric(q1),
+
+    institution = label_from_map(rs1, rs1_labels, "Établissement code"),
+
+    year_code = suppressWarnings(as.numeric(q1)),
     year = dplyr::case_when(
       year_code == 1 ~ "1re année",
       year_code == 2 ~ "2e année",
@@ -507,31 +559,27 @@ df <- df_raw |>
       year_code == 5 ~ "Thèse déjà soutenue",
       TRUE ~ NA_character_
     ),
-    discipline_code = as.numeric(q2),
-    discipline = label_from_map(q2, q2_labels),
+
+    discipline_code = suppressWarnings(as.numeric(q2)),
+
+    # Niveau détaillé : conserve toutes les disciplines de la datamap.
+    discipline_detail = label_from_map(q2, q2_labels, "Discipline code"),
+
+    # Niveau agrégé : utile pour les modèles plus stables, mais ne remplace pas
+    # l'analyse détaillée.
     discipline_broad = dplyr::case_when(
       discipline_code %in% c(1, 2, 3, 4) ~ "Sciences formelles, physiques et chimiques",
       discipline_code %in% c(5, 10) ~ "Sciences du vivant, santé et environnement",
       discipline_code %in% c(6, 7) ~ "Sciences humaines et sociales",
       discipline_code %in% c(8, 9) ~ "Ingénierie, informatique et numérique",
       TRUE ~ "Autre / non classé"
-    )
-  )
+    ),
 
-q8_codes_by_row <- df |>
-  dplyr::select(dplyr::all_of(q8_cols)) |>
-  purrr::pmap(function(...) {
-    vals <- c(...)
-    vals <- vals[!is.na(vals)]
-    unique(as.numeric(vals))
-  })
-
-df <- df |>
-  dplyr::mutate(
     q8_has_none = purrr::map_lgl(q8_codes_by_row, ~ 97 %in% .x),
-    q8_has_organized = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% 1:5)),
-    q8_has_self_or_other = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% c(6, 98))),
-    q8_n_organized_types = purrr::map_int(q8_codes_by_row, ~ length(intersect(.x, 1:5))),
+    q8_has_organized = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% 1:4)),
+    q8_has_self_or_other = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% c(5, 6, 98))),
+    q8_n_organized_types = purrr::map_int(q8_codes_by_row, ~ length(intersect(.x, 1:4))),
+
     exposure3 = dplyr::case_when(
       q8_has_none ~ "Aucun dispositif",
       q8_has_organized ~ "Dispositif organisé",
@@ -543,12 +591,14 @@ df <- df |>
       exposure3 == "Dispositif organisé" ~ "Dispositif organisé",
       TRUE ~ NA_character_
     ),
+    exposure_organized = as.numeric(exposure3 == "Dispositif organisé"),
+
     training_intensity = dplyr::case_when(
       exposure3 == "Aucun dispositif" ~ "Aucun dispositif",
-      q10 == 1 ~ "1 formation/action",
-      q10 == 2 ~ "2 ou 3 formations/actions",
-      q10 == 3 ~ "4 formations/actions ou plus",
-      q10 == 97 ~ "Nombre inconnu",
+      "q10" %in% names(df_raw) & q10 == 1 ~ "1 formation/action",
+      "q10" %in% names(df_raw) & q10 == 2 ~ "2 ou 3 formations/actions",
+      "q10" %in% names(df_raw) & q10 == 3 ~ "4 formations/actions ou plus",
+      "q10" %in% names(df_raw) & q10 == 97 ~ "Nombre inconnu",
       exposure3 == "Autoformation / autre seulement" ~ "Autoformation / autre seulement",
       TRUE ~ "Non renseigné"
     )
@@ -558,1768 +608,988 @@ df <- df |>
     year = factor(year, levels = c("1re année", "2e année", "3e année", "4e année ou plus", "Thèse déjà soutenue")),
     exposure3 = factor(exposure3, levels = c("Aucun dispositif", "Autoformation / autre seulement", "Dispositif organisé", "Indéterminé")),
     exposure2 = factor(exposure2, levels = c("Aucun dispositif", "Dispositif organisé")),
-    training_intensity = factor(
-      training_intensity,
-      levels = c("Aucun dispositif", "1 formation/action", "2 ou 3 formations/actions", "4 formations/actions ou plus", "Autoformation / autre seulement", "Nombre inconnu", "Non renseigné")
-    ),
     discipline_broad = factor(
       discipline_broad,
-      levels = c("Sciences humaines et sociales", "Sciences du vivant, santé et environnement", "Sciences formelles, physiques et chimiques", "Ingénierie, informatique et numérique", "Autre / non classé")
-    )
+      levels = c(
+        "Sciences humaines et sociales",
+        "Sciences du vivant, santé et environnement",
+        "Sciences formelles, physiques et chimiques",
+        "Ingénierie, informatique et numérique",
+        "Autre / non classé"
+      )
+    ),
+    discipline_detail = factor(discipline_detail),
+    training_intensity = factor(training_intensity)
   )
 
-# Vérification immédiate de l'année, pour éviter toute disparition silencieuse.
-year_check <- df |>
-  dplyr::count(year_code, year, name = "n") |>
-  dplyr::arrange(year_code)
-
-write_table(year_check, "year_check_q1_codes", subdir = "diagnostics")
-
-if (dplyr::n_distinct(stats::na.omit(df$year)) < 3) {
-  warning("Attention : moins de trois modalités d'année détectées. Vérifier Q1 et year_check_q1_codes.csv")
-}
-
-# Sauvegarde de la base propre.
-readr::write_csv(df, file.path(out_dir, "data_clean", "osyr_v2_corrigee_clean.csv"))
-saveRDS(df, file.path(out_dir, "data_clean", "osyr_v2_corrigee_clean.rds"))
-
-# =============================================================================
-# 4. Contrôles qualité
-# =============================================================================
-
-quality_overview <- tibble::tibble(
-  n_rows = nrow(df),
-  n_cols = ncol(df),
-  n_language_fr = sum(df$respondent_language == "fr", na.rm = TRUE),
-  n_language_en = sum(df$respondent_language == "en", na.rm = TRUE),
-  pct_language_en_unweighted = mean(df$respondent_language == "en", na.rm = TRUE),
-  sum_weights = sum(df$.weight, na.rm = TRUE),
-  min_weight = min(df$.weight, na.rm = TRUE),
-  max_weight = max(df$.weight, na.rm = TRUE),
-  mean_weight = mean(df$.weight, na.rm = TRUE),
-  missing_weight = sum(is.na(df$.weight)),
-  n_year_levels = dplyr::n_distinct(stats::na.omit(df$year)),
-  n_exposure3_levels = dplyr::n_distinct(stats::na.omit(df$exposure3))
-)
-
-missing_by_variable <- df |>
-  dplyr::summarise(dplyr::across(dplyr::everything(), ~ mean(is.na(.x)))) |>
-  tidyr::pivot_longer(dplyr::everything(), names_to = "variable", values_to = "missing_rate") |>
-  dplyr::arrange(dplyr::desc(missing_rate))
-
-write_table(quality_overview, "quality_overview")
-write_table(missing_by_variable, "missing_by_variable")
-
-# Design d'enquête pondéré.
-df_survey <- df |> dplyr::filter(!is.na(.weight), .weight > 0)
-design <- survey::svydesign(ids = ~1, weights = ~.weight, data = df_survey)
-
-# =============================================================================
-# 5. Structure de l'échantillon et exposition
-# =============================================================================
-
-sample_language <- weighted_frequency(df, "language_group") |> write_table("sample_language")
-sample_year <- weighted_frequency(df, "year") |> write_table("sample_year")
-sample_institution <- weighted_frequency(df, "institution") |> write_table("sample_institution")
-sample_discipline <- weighted_frequency(df, "discipline_broad") |> write_table("sample_discipline_broad")
-sample_exposure <- weighted_frequency(df, "exposure3") |> write_table("sample_exposure3")
-sample_intensity <- weighted_frequency(df, "training_intensity") |> write_table("sample_training_intensity")
-
-# Graphique : année de thèse, pour vérifier que les quatre années apparaissent bien.
-p_year <- sample_year |>
-  dplyr::mutate(category = factor(category, levels = levels(df$year))) |>
-  ggplot2::ggplot(ggplot2::aes(x = category, y = pct_w)) +
-  ggplot2::geom_col(width = 0.68, fill = osyr_palette["navy"]) +
-  ggplot2::geom_text(ggplot2::aes(label = pct_w_label), vjust = -0.45, color = osyr_palette["navy"], size = 4) +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, max(sample_year$pct_w, na.rm = TRUE) * 1.22)) +
-  ggplot2::labs(
-    title = "Année de thèse des répondants",
-    subtitle = "Répartition pondérée recodée directement à partir de Q1.",
-    x = NULL,
-    y = "Pourcentage pondéré",
-    caption = "Source : enquête OSYR V2 corrigée, pondération Poids."
-  ) +
-  theme_osyr() +
-  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 12, hjust = 1))
-
-save_plot(p_year, "00_distribution_annee_these_controle.png", width = 10.5, height = 5.8)
-
-p_language <- sample_language |>
-  dplyr::mutate(category = forcats::fct_reorder(category, pct_w)) |>
-  ggplot2::ggplot(ggplot2::aes(x = category, y = pct_w, fill = category)) +
-  ggplot2::geom_col(width = 0.68) +
-  ggplot2::geom_text(ggplot2::aes(label = pct_w_label), hjust = -0.12, color = osyr_palette["navy"], size = 4) +
-  ggplot2::coord_flip(clip = "off") +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, max(sample_language$pct_w, na.rm = TRUE) * 1.18)) +
-  ggplot2::scale_fill_manual(values = language_colors, drop = TRUE) +
-  ggplot2::labs(
-    title = "Langue du questionnaire",
-    subtitle = "La modalité anglaise est analysée comme un indicateur prudent de profil international.",
-    x = NULL,
-    y = "Pourcentage pondéré",
-    caption = "Source : enquête OSYR V2 corrigée, pondération Poids."
-  ) +
-  theme_osyr() +
-  ggplot2::theme(legend.position = "none")
-
-save_plot(p_language, "01_langue_questionnaire.png", width = 10, height = 5.5)
-
-p_exposure <- sample_exposure |>
-  dplyr::filter(category != "Indéterminé") |>
-  dplyr::mutate(category = forcats::fct_reorder(category, pct_w)) |>
-  ggplot2::ggplot(ggplot2::aes(x = category, y = pct_w, fill = category)) +
-  ggplot2::geom_col(width = 0.68) +
-  ggplot2::geom_text(ggplot2::aes(label = pct_w_label), hjust = -0.12, color = osyr_palette["navy"], size = 4) +
-  ggplot2::coord_flip(clip = "off") +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, max(sample_exposure$pct_w, na.rm = TRUE) * 1.18)) +
-  ggplot2::scale_fill_manual(values = exposure_colors, drop = TRUE) +
-  ggplot2::labs(
-    title = "Exposition aux dispositifs de science ouverte",
-    subtitle = "Classification construite à partir de Q8 : aucun dispositif, autoformation/autre seulement, dispositif organisé.",
-    x = NULL,
-    y = "Pourcentage pondéré",
-    caption = "Source : enquête OSYR V2 corrigée, pondération Poids."
-  ) +
-  theme_osyr() +
-  ggplot2::theme(legend.position = "none")
-
-save_plot(p_exposure, "02_exposition_dispositifs.png", width = 10.5, height = 5.5)
-
-# Croisements structurants.
-cross_exposure_year <- cross_weighted(df, "year", "exposure3") |> write_table("cross_exposure_by_year")
-cross_exposure_discipline <- cross_weighted(df, "discipline_broad", "exposure3") |> write_table("cross_exposure_by_discipline")
-cross_exposure_language <- cross_weighted(df, "language_group", "exposure3") |> write_table("cross_exposure_by_language")
-cross_exposure_institution <- cross_weighted(df, "institution", "exposure3") |> write_table("cross_exposure_by_institution")
-
-p_exposure_year <- cross_exposure_year |>
-  dplyr::filter(col_category != "Indéterminé") |>
-  dplyr::mutate(row_category = factor(row_category, levels = levels(df$year))) |>
-  ggplot2::ggplot(ggplot2::aes(x = row_category, y = pct_row, fill = col_category)) +
-  ggplot2::geom_col(width = 0.72, color = "white", linewidth = 0.4) +
-  ggplot2::geom_text(
-    data = ~ dplyr::filter(.x, pct_row >= 0.08),
-    ggplot2::aes(label = scales::percent(pct_row, accuracy = 1, decimal.mark = ",")),
-    position = ggplot2::position_stack(vjust = 0.5),
-    color = "white",
-    fontface = "bold",
-    size = 3.6
-  ) +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1), expand = c(0, 0)) +
-  ggplot2::scale_fill_manual(values = exposure_colors, drop = TRUE) +
-  ggplot2::labs(
-    title = "Exposition selon l'année de thèse",
-    subtitle = "Répartition pondérée des types d'exposition dans chaque année. Recodage robuste à partir des codes Q1.",
-    x = NULL,
-    y = "Pourcentage pondéré",
-    caption = "Lecture : chaque barre représente 100 % des répondants d'une même année de thèse."
-  ) +
-  theme_osyr() +
-  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 10, hjust = 1))
-
-save_plot(p_exposure_year, "03_exposition_par_annee_CORRIGE.png", width = 12, height = 6.5)
-
-p_exposure_discipline <- cross_exposure_discipline |>
-  dplyr::filter(col_category != "Indéterminé") |>
-  ggplot2::ggplot(ggplot2::aes(x = row_category, y = pct_row, fill = col_category)) +
-  ggplot2::geom_col(width = 0.72, color = "white", linewidth = 0.4) +
-  ggplot2::geom_text(
-    data = ~ dplyr::filter(.x, pct_row >= 0.08),
-    ggplot2::aes(label = scales::percent(pct_row, accuracy = 1, decimal.mark = ",")),
-    position = ggplot2::position_stack(vjust = 0.5),
-    color = "white",
-    fontface = "bold",
-    size = 3.3
-  ) +
-  ggplot2::coord_flip() +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1), expand = c(0, 0)) +
-  ggplot2::scale_fill_manual(values = exposure_colors, drop = TRUE) +
-  ggplot2::labs(
-    title = "Exposition selon le domaine disciplinaire",
-    subtitle = "Répartition pondérée des types d'exposition dans chaque grand domaine.",
-    x = NULL,
-    y = "Pourcentage pondéré"
-  ) +
-  theme_osyr()
-
-save_plot(p_exposure_discipline, "04_exposition_par_discipline.png", width = 12, height = 6.8)
-
-p_exposure_language <- cross_exposure_language |>
-  dplyr::filter(col_category != "Indéterminé") |>
-  ggplot2::ggplot(ggplot2::aes(x = row_category, y = pct_row, fill = col_category)) +
-  ggplot2::geom_col(width = 0.72, color = "white", linewidth = 0.4) +
-  ggplot2::geom_text(
-    data = ~ dplyr::filter(.x, pct_row >= 0.08),
-    ggplot2::aes(label = scales::percent(pct_row, accuracy = 1, decimal.mark = ",")),
-    position = ggplot2::position_stack(vjust = 0.5),
-    color = "white",
-    fontface = "bold",
-    size = 3.5
-  ) +
-  ggplot2::coord_flip() +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1), expand = c(0, 0)) +
-  ggplot2::scale_fill_manual(values = exposure_colors, drop = TRUE) +
-  ggplot2::labs(
-    title = "Exposition selon la langue du questionnaire",
-    subtitle = "Comparaison entre répondants au questionnaire français et anglais.",
-    x = NULL,
-    y = "Pourcentage pondéré"
-  ) +
-  theme_osyr()
-
-save_plot(p_exposure_language, "05_exposition_par_langue.png", width = 11.5, height = 5.7)
-
-# =============================================================================
-# 6. Tables longues pour les batteries de questions
-# =============================================================================
+# -----------------------------------------------------------------------------
+# 5. Formats longs des batteries
+# -----------------------------------------------------------------------------
 
 context_vars <- c(
-  "respondent_id", ".weight", "exposure3", "exposure2", "training_intensity",
-  "year_code", "year", "discipline", "discipline_broad", "institution", "language_group"
+  "respondent_id", ".weight", "weight_none", "exposure3", "exposure2",
+  "exposure_organized", "training_intensity", "q8_n_organized_types",
+  "year_code", "year", "discipline_code", "discipline_detail",
+  "discipline_broad", "institution", "language_group"
 )
 
-q4_vars  <- names(df) |> stringr::str_subset("^q4_a\\d+$")
-q5_vars  <- names(df) |> stringr::str_subset("^q5_a\\d+$")
+# -----------------------------------------------------------------------------
+# 5bis. Dispositifs Q8 détaillés, sans agrégation
+# -----------------------------------------------------------------------------
+# Cette table garde chaque modalité Q8 telle qu'elle est cochée.
+# Important : le MOOC est traité comme autoformation / autre seulement, et non
+# comme dispositif organisé, conformément à la correction méthodologique.
+# La part calculée est une part de répondants ; comme Q8 est multiréponse,
+# la somme des modalités peut dépasser 100 %, sauf pour "Aucun dispositif".
+
+classify_q8_device <- function(code, label) {
+  label_clean <- clean_ascii(label)
+
+  dplyr::case_when(
+    code == 97 | stringr::str_detect(label_clean, "aucun|none") ~ "Aucun dispositif",
+    code %in% c(5, 6, 98) | stringr::str_detect(label_clean, "mooc|autoformation|auto formation|autre") ~ "Autoformation / MOOC / autre",
+    code %in% 1:4 ~ "Dispositif organisé",
+    stringr::str_detect(label_clean, "formation|atelier|seminaire|module|stage|webinaire|presentiel|distanciel") ~ "Dispositif organisé",
+    TRUE ~ "Autre / à vérifier"
+  )
+}
+
+q8_devices_long <- df |>
+  dplyr::select(dplyr::any_of(context_vars), dplyr::all_of(q8_cols)) |>
+  tidyr::pivot_longer(
+    cols = dplyr::all_of(q8_cols),
+    names_to = "q8_slot",
+    values_to = "device_code"
+  ) |>
+  dplyr::mutate(device_code = suppressWarnings(as.numeric(device_code))) |>
+  dplyr::filter(!is.na(device_code)) |>
+  dplyr::left_join(
+    q8_labels |>
+      dplyr::select(device_code = code, device_label = value),
+    by = "device_code"
+  ) |>
+  dplyr::mutate(
+    device_label = dplyr::coalesce(device_label, paste0("Code ", device_code)),
+    device_type = classify_q8_device(device_code, device_label)
+  ) |>
+  dplyr::distinct(respondent_id, device_code, .keep_all = TRUE)
+
+readr::write_csv(q8_devices_long, file.path(out_dir, "data_clean", "q8_devices_long.csv"))
+
+q8_device_distribution <- q8_devices_long |>
+  dplyr::group_by(device_code, device_label, device_type) |>
+  dplyr::summarise(
+    n = dplyr::n_distinct(respondent_id),
+    weighted_n = sum(.weight, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  dplyr::mutate(
+    pct_respondents_w = weighted_n / sum(df$.weight, na.rm = TRUE),
+    pct_respondents_w_label = safe_pct(pct_respondents_w)
+  ) |>
+  dplyr::arrange(dplyr::desc(pct_respondents_w))
+
+write_table(q8_device_distribution, "q8_device_distribution_detail")
+
+# Distribution par langue du questionnaire.
+# Correction importante : le dénominateur doit être le poids total des répondants
+# dans chaque groupe de langue, pas la somme à l'intérieur de chaque modalité Q8.
+language_totals <- df |>
+  dplyr::filter(!is.na(language_group)) |>
+  dplyr::group_by(language_group) |>
+  dplyr::summarise(total_weight_language = sum(.weight, na.rm = TRUE), .groups = "drop")
+
+q8_device_distribution_by_language <- q8_devices_long |>
+  dplyr::filter(!is.na(language_group)) |>
+  dplyr::group_by(language_group, device_code, device_label, device_type) |>
+  dplyr::summarise(
+    n = dplyr::n_distinct(respondent_id),
+    weighted_n = sum(.weight, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  dplyr::left_join(language_totals, by = "language_group") |>
+  dplyr::mutate(
+    pct_respondents_w = weighted_n / total_weight_language,
+    pct_respondents_w_label = safe_pct(pct_respondents_w)
+  ) |>
+  dplyr::arrange(language_group, dplyr::desc(pct_respondents_w))
+
+write_table(q8_device_distribution_by_language, "q8_device_distribution_detail_by_language")
+
+make_item_long <- function(data, vars, value_name, item_map, context_vars) {
+  if (length(vars) == 0) return(tibble::tibble())
+  data |>
+    dplyr::select(dplyr::any_of(context_vars), dplyr::all_of(vars)) |>
+    tidyr::pivot_longer(
+      cols = dplyr::all_of(vars),
+      names_to = "item",
+      values_to = value_name
+    ) |>
+    dplyr::left_join(item_map, by = "item") |>
+    dplyr::mutate(
+      item_label = dplyr::coalesce(item_label, item),
+      item_label = stringr::str_squish(item_label)
+    )
+}
+
+q4_vars <- names(df) |> stringr::str_subset("^q4_a\\d+$")
+q5_vars <- names(df) |> stringr::str_subset("^q5_a\\d+$")
 q11_vars <- names(df) |> stringr::str_subset("^q11_a\\d+$")
 q12_vars <- names(df) |> stringr::str_subset("^q12_a\\d+$")
 q13_vars <- names(df) |> stringr::str_subset("^q13_a\\d+$")
 q15_vars <- names(df) |> stringr::str_subset("^q15_a\\d+$")
 
 q4_long <- make_item_long(df, q4_vars, "response", item_map, context_vars) |>
-  dplyr::mutate(positive = response == 1, family = "Activités de recherche déjà réalisées")
+  dplyr::mutate(positive = suppressWarnings(as.numeric(response)) == 1)
 
 q5_long <- make_item_long(df, q5_vars, "response", item_map, context_vars) |>
   dplyr::mutate(
-    known_well = response %in% c(3, 4),
-    used = response == 4,
-    family = "Notions et outils de science ouverte"
+    response_num = suppressWarnings(as.numeric(response)),
+    known_well = response_num %in% c(3, 4),
+    used = response_num == 4,
+    item_family = dplyr::case_when(
+      stringr::str_detect(clean_ascii(item_label), "donnee|data|fair|pgd|gestion des donnees|entrepot") ~ "Données / FAIR / PGD",
+      stringr::str_detect(clean_ascii(item_label), "code|logiciel|software|github|gitlab|software heritage") ~ "Code / logiciel",
+      stringr::str_detect(clean_ascii(item_label), "archive|revue|publication|article|open access|acces ouvert|voie verte|voie doree|voie diamant") ~ "Publications / accès ouvert",
+      stringr::str_detect(clean_ascii(item_label), "orcid|idhal|identifiant") ~ "Identifiants chercheurs",
+      stringr::str_detect(clean_ascii(item_label), "creative commons|licence") ~ "Licences",
+      TRUE ~ "Autres objets"
+    )
   )
 
 q11_long <- make_item_long(df, q11_vars, "response", item_map, context_vars) |>
-  dplyr::mutate(agree = response %in% c(3, 4), family = "Effet perçu des formations")
+  dplyr::mutate(response_num = suppressWarnings(as.numeric(response)), agree = response_num %in% c(3, 4))
 
 q12_long <- make_item_long(df, q12_vars, "response", item_map, context_vars) |>
   dplyr::mutate(
-    incitation = response %in% c(4, 5),
-    frein = response %in% c(1, 2),
-    neutral = response == 3,
-    dont_know = response == 97,
-    family = "Freins et incitations"
+    response_num = suppressWarnings(as.numeric(response)),
+    incitation = response_num %in% c(4, 5),
+    frein = response_num %in% c(1, 2)
   )
 
 q13_long <- make_item_long(df, q13_vars, "response", item_map, context_vars) |>
   dplyr::mutate(
-    yes = response == 1,
-    no = response == 2,
-    dont_know = response == 97,
-    open_intention_item = item %in% c("q13_a1", "q13_a2", "q13_a3", "q13_a5"),
-    family = "Intentions de pratiques"
+    response_num = suppressWarnings(as.numeric(response)),
+    yes = response_num == 1,
+    no = response_num == 2,
+    dont_know = response_num %in% c(97, 99)
   )
 
 q15_long <- make_item_long(df, q15_vars, "response", item_map, context_vars) |>
   dplyr::mutate(
-    agree = response %in% c(4, 5),
-    disagree = response %in% c(1, 2),
-    statement_type = dplyr::case_when(
-      item %in% c("q15_a2", "q15_a4", "q15_a6") ~ "Bénéfices scientifiques",
-      item %in% c("q15_a1", "q15_a3") ~ "Risques individuels",
-      item %in% c("q15_a5", "q15_a7") ~ "Contraintes institutionnelles / économiques",
-      TRUE ~ "Autre"
-    ),
-    family = "Représentations de la science ouverte"
+    response_num = suppressWarnings(as.numeric(response)),
+    agree = response_num %in% c(4, 5),
+    disagree = response_num %in% c(1, 2)
   )
 
-# Sauvegarde des formats longs utiles.
 readr::write_csv(q4_long, file.path(out_dir, "data_clean", "q4_long.csv"))
 readr::write_csv(q5_long, file.path(out_dir, "data_clean", "q5_long.csv"))
+readr::write_csv(q11_long, file.path(out_dir, "data_clean", "q11_long.csv"))
 readr::write_csv(q12_long, file.path(out_dir, "data_clean", "q12_long.csv"))
 readr::write_csv(q13_long, file.path(out_dir, "data_clean", "q13_long.csv"))
 readr::write_csv(q15_long, file.path(out_dir, "data_clean", "q15_long.csv"))
 
-# =============================================================================
-# 7. Descriptifs item par item
-# =============================================================================
+# -----------------------------------------------------------------------------
+# 6. Scores synthétiques
+# -----------------------------------------------------------------------------
 
-summarise_item_binary <- function(long_data, value_col, group_vars = character()) {
-  value_col <- rlang::ensym(value_col)
-  value_name <- rlang::as_name(value_col)
+df <- df |>
+  dplyr::mutate(
+    score_q4_practices_research = row_prop_codes(df, q4_vars, yes_codes = 1),
+    score_q5_known_well = row_prop_codes(df, q5_vars, yes_codes = c(3, 4), no_codes = c(1, 2, 3, 4)),
+    score_q5_used = row_prop_codes(df, q5_vars, yes_codes = 4, no_codes = c(1, 2, 3, 4)),
+    score_q13_open_intentions = row_prop_codes(df, q13_vars, yes_codes = 1, no_codes = c(1, 2, 97, 99)),
+    score_q13_dont_know = row_prop_codes(df, q13_vars, yes_codes = c(97, 99), no_codes = c(1, 2, 97, 99)),
+    score_q12_incitation = row_prop_codes(df, q12_vars, yes_codes = c(4, 5), no_codes = c(1, 2, 3, 4, 5)),
+    score_q12_frein = row_prop_codes(df, q12_vars, yes_codes = c(1, 2), no_codes = c(1, 2, 3, 4, 5)),
+    score_q15_agreement = row_prop_codes(df, q15_vars, yes_codes = c(4, 5), no_codes = c(1, 2, 3, 4, 5)),
+    # Alias conservés pour compatibilité avec le script 03.
+    score_q15_benefits = score_q15_agreement,
+    score_q15_constraints = NA_real_,
+    score_q15_risks = NA_real_
+  )
 
-  # Sécurité v2 : les libellés viennent de la datamap. Si la jointure avec la
-  # datamap échoue pour certaines batteries, on ne bloque pas tout le workflow :
-  # on recrée un libellé minimal à partir du nom de l'item.
-  if (nrow(long_data) == 0 || !value_name %in% names(long_data)) {
-    warning("Table longue vide ou colonne absente : ", value_name)
-    return(tibble::tibble(
-      item = character(),
-      item_label = character(),
-      n = integer(),
-      weighted_n = numeric(),
-      pct_w = numeric(),
-      pct_w_label = character()
-    ))
-  }
-  if (!"item" %in% names(long_data)) {
-    long_data <- dplyr::mutate(long_data, item = paste0("item_", dplyr::row_number()))
-  }
-  if (!"item_label" %in% names(long_data)) {
-    long_data <- dplyr::mutate(long_data, item_label = as.character(item))
-  }
+readr::write_csv(df, file.path(out_dir, "data_clean", "osyr_v2_corrigee_clean.csv"))
+saveRDS(df, file.path(out_dir, "data_clean", "osyr_v2_corrigee_clean.rds"))
 
-  group_cols <- unique(c(group_vars, "item", "item_label"))
+# -----------------------------------------------------------------------------
+# 7. Contrôles qualité et documentation des disciplines
+# -----------------------------------------------------------------------------
 
-  long_data |>
-    dplyr::filter(!is.na(!!value_col), !is.na(.weight)) |>
-    dplyr::group_by(dplyr::across(dplyr::any_of(group_cols))) |>
+quality_overview <- tibble::tibble(
+  n_rows = nrow(df),
+  n_cols = ncol(df),
+  sum_weights = sum(df$.weight, na.rm = TRUE),
+  min_weight = min(df$.weight, na.rm = TRUE),
+  max_weight = max(df$.weight, na.rm = TRUE),
+  n_discipline_detail = dplyr::n_distinct(df$discipline_detail, na.rm = TRUE),
+  n_discipline_broad = dplyr::n_distinct(df$discipline_broad, na.rm = TRUE),
+  n_year_levels = dplyr::n_distinct(df$year, na.rm = TRUE),
+  n_exposure3_levels = dplyr::n_distinct(df$exposure3, na.rm = TRUE)
+)
+write_table(quality_overview, "quality_overview")
+
+discipline_mapping <- df |>
+  dplyr::distinct(discipline_code, discipline_detail, discipline_broad) |>
+  dplyr::arrange(discipline_code)
+write_table(discipline_mapping, "discipline_mapping_detail_to_broad", subdir = "diagnostics")
+
+# Contrôle explicite : si les disciplines apparaissent encore comme "Discipline code X",
+# cela signifie que la datamap ne contenait pas les libellés attendus ou que le
+# fichier manuel n'a pas été fourni.
+discipline_label_quality <- discipline_mapping |>
+  dplyr::mutate(
+    label_is_fallback = stringr::str_detect(as.character(discipline_detail), "^Discipline code|^Code"),
+    label_length = stringr::str_length(as.character(discipline_detail))
+  )
+write_table(discipline_label_quality, "discipline_label_quality", subdir = "diagnostics")
+
+if (any(discipline_label_quality$label_is_fallback, na.rm = TRUE)) {
+  warning(
+    "Les libellés de certaines disciplines restent génériques. ",
+    "Voir outputs_osyr_v2_final/diagnostics/discipline_label_quality.csv et ",
+    "outputs_osyr_v2_final/diagnostics/q2_discipline_labels_template_to_complete.csv."
+  )
+}
+
+# -----------------------------------------------------------------------------
+# 8. Descriptifs pondérés
+# -----------------------------------------------------------------------------
+
+weighted_frequency <- function(data, var, weight = ".weight") {
+  data |>
+    dplyr::mutate(category = .data[[var]]) |>
+    dplyr::filter(!is.na(category), !is.na(.data[[weight]])) |>
+    dplyr::group_by(category) |>
     dplyr::summarise(
       n = dplyr::n(),
-      weighted_n = sum(.weight, na.rm = TRUE),
-      pct_w = sum(as.numeric(!!value_col) * .weight, na.rm = TRUE) / sum(.weight, na.rm = TRUE),
+      weighted_n = sum(.data[[weight]], na.rm = TRUE),
       .groups = "drop"
     ) |>
-    dplyr::mutate(pct_w_label = safe_pct(pct_w))
+    dplyr::mutate(
+      pct_w = weighted_n / sum(weighted_n),
+      pct_w_label = safe_pct(pct_w)
+    ) |>
+    dplyr::arrange(dplyr::desc(pct_w))
 }
 
-q4_overall <- summarise_item_binary(q4_long, positive) |> write_table("q4_activities_overall")
-q5_known_overall <- summarise_item_binary(q5_long, known_well) |> write_table("q5_known_well_overall")
-q5_used_overall <- summarise_item_binary(q5_long, used) |> write_table("q5_used_overall")
-q12_incit_overall <- summarise_item_binary(q12_long, incitation) |> write_table("q12_incitation_overall")
-q12_frein_overall <- summarise_item_binary(q12_long, frein) |> write_table("q12_frein_overall")
-q13_yes_overall <- summarise_item_binary(q13_long, yes) |> write_table("q13_intentions_yes_overall")
-q15_agree_overall <- summarise_item_binary(q15_long, agree) |> write_table("q15_agreement_overall")
-
-plot_ranked_bar <- function(tab, filename, title, subtitle, fill = osyr_palette["navy"], width = 12, height = 7.5) {
-  # Sécurité ajoutée dans le package v2 : selon les versions de datamap,
-  # certaines tables intermédiaires peuvent ne pas contenir `item_label`.
-  # Dans ce cas, on utilise `item`, puis `category`, puis un identifiant de ligne.
-  # Cela évite l'arrêt du workflow sur une figure tout en gardant une trace claire.
-  if (nrow(tab) == 0) {
-    warning("Table vide pour la figure : ", filename)
-    return(invisible(NULL))
-  }
-  if (!"pct_w" %in% names(tab)) {
-    warning("Colonne pct_w absente pour la figure : ", filename)
-    return(invisible(NULL))
-  }
-  if (!"item_label" %in% names(tab)) {
-    if ("item" %in% names(tab)) {
-      tab <- dplyr::mutate(tab, item_label = as.character(item))
-    } else if ("category" %in% names(tab)) {
-      tab <- dplyr::mutate(tab, item_label = as.character(category))
-    } else {
-      tab <- dplyr::mutate(tab, item_label = paste0("Item ", dplyr::row_number()))
-    }
-  }
-
-  tab <- tab |>
-    dplyr::filter(!is.na(pct_w)) |>
-    dplyr::mutate(item_label = as.character(item_label))
-
-  if (nrow(tab) == 0) {
-    warning("Table sans valeur exploitable pour la figure : ", filename)
-    return(invisible(NULL))
-  }
-
-  p <- tab |>
-    dplyr::arrange(pct_w) |>
-    dplyr::mutate(item_label = factor(item_label, levels = unique(item_label))) |>
-    ggplot2::ggplot(ggplot2::aes(x = item_label, y = pct_w)) +
-    ggplot2::geom_col(width = 0.68, fill = fill) +
-    ggplot2::geom_text(
-      ggplot2::aes(label = safe_pct(pct_w, accuracy = 1)),
-      hjust = -0.10,
-      color = osyr_palette["navy"],
-      size = 3.8
-    ) +
-    ggplot2::coord_flip(clip = "off") +
-    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, max(tab$pct_w, na.rm = TRUE) * 1.22)) +
-    ggplot2::labs(title = title, subtitle = subtitle, x = NULL, y = "Pourcentage pondéré") +
-    theme_osyr()
-  save_plot(p, filename, width = width, height = height)
-  invisible(p)
+cross_weighted <- function(data, row_var, col_var, weight = ".weight") {
+  data |>
+    dplyr::mutate(row_category = .data[[row_var]], col_category = .data[[col_var]]) |>
+    dplyr::filter(!is.na(row_category), !is.na(col_category), !is.na(.data[[weight]])) |>
+    dplyr::group_by(row_category, col_category) |>
+    dplyr::summarise(
+      n = dplyr::n(),
+      weighted_n = sum(.data[[weight]], na.rm = TRUE),
+      .groups = "drop_last"
+    ) |>
+    dplyr::mutate(
+      pct_row = weighted_n / sum(weighted_n),
+      pct_row_label = safe_pct(pct_row)
+    ) |>
+    dplyr::ungroup()
 }
 
-plot_ranked_bar(q5_known_overall, "06_q5_notions_bien_connues.png", "Notions et outils bien connus", "Part pondérée des doctorants déclarant connaître bien chaque notion ou outil.", fill = unname(osyr_palette["teal"]), height = 8.5)
-plot_ranked_bar(q5_used_overall, "07_q5_notions_deja_utilisees.png", "Notions et outils déjà utilisés", "Part pondérée des doctorants déclarant avoir déjà utilisé chaque notion ou outil.", fill = unname(osyr_palette["blue"]), height = 8.5)
-plot_ranked_bar(q13_yes_overall, "08_q13_intentions_oui.png", "Intentions de pratiques ouvertes ou de valorisation", "Part pondérée de réponses « oui » pour chaque intention.", fill = unname(osyr_palette["purple"]), height = 6.6)
-plot_ranked_bar(q15_agree_overall, "09_q15_accord_affirmations.png", "Accord avec les affirmations sur la science ouverte", "Part pondérée de réponses « plutôt d'accord » ou « tout à fait d'accord ».", fill = unname(osyr_palette["navy"]), height = 7.2)
+sample_year <- weighted_frequency(df, "year") |> write_table("sample_year")
+sample_language <- weighted_frequency(df, "language_group") |> write_table("sample_language")
+sample_exposure3 <- weighted_frequency(df, "exposure3") |> write_table("sample_exposure3")
+sample_discipline_broad <- weighted_frequency(df, "discipline_broad") |> write_table("sample_discipline_broad")
+sample_discipline_detail <- weighted_frequency(df, "discipline_detail") |> write_table("sample_discipline_detail")
 
-# Figure premium : écart entre connaissance et usage.
-# Elle montre immédiatement les notions connues mais encore peu appropriées
-# dans les pratiques.
-#
-# Correctif v3 : ne pas utiliser dplyr::if_else() pour tester l'existence
-# d'une colonne. if_else() travaille ligne à ligne et attend des vecteurs de
-# même longueur ; ici le test `"item_label" %in% names(...)` est un seul TRUE/FALSE.
-# On prépare donc la table en amont avec un if/else classique, puis on poursuit
-# le pipeline. Cela évite l'erreur :
-#   Can't recycle `true` (size 15) to size 1.
-q5_known_for_gap <- q5_known_overall
-if (!"item_label" %in% names(q5_known_for_gap)) {
-  if ("item" %in% names(q5_known_for_gap)) {
-    q5_known_for_gap$item_label <- as.character(q5_known_for_gap$item)
-  } else {
-    q5_known_for_gap$item <- paste0("item_", seq_len(nrow(q5_known_for_gap)))
-    q5_known_for_gap$item_label <- q5_known_for_gap$item
-  }
-}
+cross_exposure_by_discipline_broad <- cross_weighted(df, "discipline_broad", "exposure3") |> write_table("cross_exposure_by_discipline_broad")
+cross_exposure_by_discipline_detail <- cross_weighted(df, "discipline_detail", "exposure3") |> write_table("cross_exposure_by_discipline_detail")
+cross_exposure_by_year <- cross_weighted(df, "year", "exposure3") |> write_table("cross_exposure_by_year")
+cross_exposure_by_language <- cross_weighted(df, "language_group", "exposure3") |> write_table("cross_exposure_by_language")
 
-q5_used_for_gap <- q5_used_overall
-if (!"item" %in% names(q5_used_for_gap)) {
-  q5_used_for_gap$item <- paste0("item_", seq_len(nrow(q5_used_for_gap)))
-}
-
-q5_known_used_gap <- q5_known_for_gap |>
-  dplyr::mutate(item_label = as.character(item_label)) |>
-  dplyr::select(item, item_label, pct_known = pct_w) |>
-  dplyr::left_join(
-    q5_used_for_gap |> dplyr::select(item, pct_used = pct_w),
-    by = "item"
-  ) |>
+# Distribution détaillée des dispositifs Q8, sans agrégation.
+# Attention : Q8 est une question multiréponse ; les pourcentages représentent
+# la part de répondants ayant coché chaque modalité et ne doivent pas être
+# additionnés.
+p_q8_devices_detail <- q8_device_distribution |>
   dplyr::mutate(
-    pct_used = dplyr::coalesce(pct_used, 0),
-    gap_known_used = pct_known - pct_used,
-    item_label = forcats::fct_reorder(item_label, gap_known_used)
+    device_label_plot = stringr::str_wrap(as.character(device_label), 55),
+    device_label_plot = forcats::fct_reorder(device_label_plot, pct_respondents_w)
   ) |>
-  write_table("q5_gap_known_used")
-
-p_q5_gap <- q5_known_used_gap |>
-  ggplot2::ggplot(ggplot2::aes(y = item_label)) +
-  ggplot2::geom_segment(
-    ggplot2::aes(x = pct_used, xend = pct_known, yend = item_label),
-    linewidth = 1.25,
-    color = "#CBD5E1"
-  ) +
-  ggplot2::geom_point(ggplot2::aes(x = pct_used), size = 3.2, color = unname(osyr_palette["blue"])) +
-  ggplot2::geom_point(ggplot2::aes(x = pct_known), size = 3.2, color = unname(osyr_palette["teal"])) +
+  ggplot2::ggplot(ggplot2::aes(x = pct_respondents_w, y = device_label_plot, fill = device_type)) +
+  ggplot2::geom_col(width = 0.68) +
   ggplot2::geom_text(
-    ggplot2::aes(x = pmax(pct_known, pct_used), label = paste0("+", round(100 * gap_known_used), " pts")),
-    hjust = -0.12,
+    ggplot2::aes(label = pct_respondents_w_label),
+    hjust = -0.10,
     size = 3.3,
-    color = unname(osyr_palette["navy"])
+    color = osyr_palette["navy"]
   ) +
   ggplot2::scale_x_continuous(
     labels = scales::percent_format(accuracy = 1),
-    limits = c(0, max(q5_known_used_gap$pct_known, q5_known_used_gap$pct_used, na.rm = TRUE) * 1.18)
+    limits = c(0, min(1, max(q8_device_distribution$pct_respondents_w, na.rm = TRUE) * 1.20))
+  ) +
+  ggplot2::scale_fill_manual(
+    values = c(
+      "Dispositif organisé" = unname(osyr_palette["teal"]),
+      "Autoformation / MOOC / autre" = unname(osyr_palette["orange"]),
+      "Aucun dispositif" = unname(osyr_palette["coral"]),
+      "Autre / à vérifier" = unname(osyr_palette["grey"])
+    ),
+    drop = TRUE
   ) +
   ggplot2::labs(
-    title = "De la connaissance à l'usage : où se situent les écarts ?",
-    subtitle = "Chaque segment relie la part qui connaît bien la notion et la part qui l'a déjà utilisée.",
-    x = "Pourcentage pondéré",
+    title = "Distribution détaillée des dispositifs déclarés",
+    subtitle = "Modalités Q8 non agrégées. Le MOOC est classé avec l'autoformation / autre.",
+    x = "Part pondérée des répondants ayant coché la modalité",
     y = NULL,
-    caption = "Bleu = déjà utilisé ; vert = bien connu. Plus le segment est long, plus la notion reste connue sans être encore pratiquée."
+    caption = "Question multiréponse : les pourcentages ne s'additionnent pas nécessairement à 100 %."
   ) +
-  theme_osyr() +
-  ggplot2::theme(legend.position = "none")
+  theme_osyr(base_size = 11)
 
-save_plot(p_q5_gap, "06b_q5_ecart_connaissance_usage.png", width = 13.5, height = 8.5)
+save_plot(p_q8_devices_detail, "02b_distribution_dispositifs_q8_detail.png", width = 12.5, height = 7.5)
 
-# =============================================================================
-# 8. Comparaisons exposés / non exposés item par item
-# =============================================================================
-
-compare_exposure_item <- function(long_data, value_col, min_n = 25) {
-  value_col <- rlang::ensym(value_col)
-
-  by_group <- long_data |>
-    dplyr::filter(!is.na(exposure2), !is.na(!!value_col), !is.na(.weight)) |>
-    dplyr::group_by(exposure2, item, item_label) |>
-    dplyr::summarise(
-      n = dplyr::n(),
-      weighted_n = sum(.weight, na.rm = TRUE),
-      pct_w = sum(as.numeric(!!value_col) * .weight, na.rm = TRUE) / sum(.weight, na.rm = TRUE),
-      .groups = "drop"
+# Variante par langue du questionnaire, utile pour tester l'hypothèse selon
+# laquelle les répondants en anglais cochent davantage certaines modalités
+# comme le MOOC. Cette version corrige le calcul des dénominateurs : chaque
+# barre représente la part des répondants d'un groupe de langue ayant coché
+# la modalité.
+if (dplyr::n_distinct(q8_device_distribution_by_language$language_group, na.rm = TRUE) > 1) {
+  q8_language_plot_data <- q8_device_distribution_by_language |>
+    dplyr::filter(language_group %in% c("Questionnaire en français", "Questionnaire en anglais")) |>
+    dplyr::mutate(
+      device_label_plot = stringr::str_wrap(as.character(device_label), 42),
+      device_label_plot = forcats::fct_reorder(device_label_plot, pct_respondents_w, .fun = max)
     )
 
-  wide <- by_group |>
-    dplyr::select(exposure2, item, item_label, n, weighted_n, pct_w) |>
-    tidyr::pivot_wider(
-      names_from = exposure2,
-      values_from = c(n, weighted_n, pct_w),
-      names_sep = "__"
-    ) |>
-    janitor::clean_names() |>
-    dplyr::mutate(
-      diff_pp = 100 * (pct_w_dispositif_organise - pct_w_aucun_dispositif),
-      ratio = pct_w_dispositif_organise / pct_w_aucun_dispositif,
-      flag_small_cell = dplyr::if_any(dplyr::starts_with("n_"), ~ .x < min_n)
-    ) |>
-    dplyr::arrange(dplyr::desc(abs(diff_pp)))
-
-  list(by_group = by_group, diff = wide)
-}
-
-q4_cmp <- compare_exposure_item(q4_long, positive)
-q5_known_cmp <- compare_exposure_item(q5_long, known_well)
-q5_used_cmp <- compare_exposure_item(q5_long, used)
-q12_incit_cmp <- compare_exposure_item(q12_long, incitation)
-q12_frein_cmp <- compare_exposure_item(q12_long, frein)
-q13_yes_cmp <- compare_exposure_item(q13_long, yes)
-q15_agree_cmp <- compare_exposure_item(q15_long, agree)
-
-write_table(q4_cmp$by_group, "q4_by_exposure")
-write_table(q4_cmp$diff, "q4_diff_exposure")
-write_table(q5_known_cmp$by_group, "q5_known_by_exposure")
-write_table(q5_known_cmp$diff, "q5_known_diff_exposure")
-write_table(q5_used_cmp$by_group, "q5_used_by_exposure")
-write_table(q5_used_cmp$diff, "q5_used_diff_exposure")
-write_table(q12_incit_cmp$diff, "q12_incitation_diff_exposure")
-write_table(q12_frein_cmp$diff, "q12_frein_diff_exposure")
-write_table(q13_yes_cmp$diff, "q13_intentions_diff_exposure")
-write_table(q15_agree_cmp$diff, "q15_agreement_diff_exposure")
-
-plot_diff <- function(diff_tab, filename, title, subtitle, top_n = 15) {
-  tab <- diff_tab |>
-    dplyr::filter(!is.na(diff_pp)) |>
-    dplyr::slice_max(abs(diff_pp), n = top_n) |>
-    dplyr::mutate(
-      item_label = stringr::str_wrap(item_label, 58),
-      item_label = forcats::fct_reorder(item_label, diff_pp),
-      direction = dplyr::if_else(diff_pp >= 0, "Plus élevé parmi les exposés", "Plus élevé parmi les non exposés")
-    )
-
-  p <- tab |>
-    ggplot2::ggplot(ggplot2::aes(x = item_label, y = diff_pp, fill = direction)) +
-    ggplot2::geom_col(width = 0.68) +
-    ggplot2::geom_hline(yintercept = 0, color = "#344054", linewidth = 0.45) +
+  p_q8_devices_language <- q8_language_plot_data |>
+    ggplot2::ggplot(ggplot2::aes(x = pct_respondents_w, y = device_label_plot, fill = language_group)) +
+    ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.75), width = 0.64) +
     ggplot2::geom_text(
-      ggplot2::aes(label = paste0(ifelse(diff_pp > 0, "+", ""), round(diff_pp, 1), " pts")),
-      hjust = dplyr::if_else(tab$diff_pp >= 0, -0.08, 1.08),
-      size = 3.5,
+      ggplot2::aes(label = pct_respondents_w_label),
+      position = ggplot2::position_dodge(width = 0.75),
+      hjust = -0.08,
+      size = 3.1,
       color = osyr_palette["navy"]
     ) +
-    ggplot2::coord_flip(clip = "off") +
-    ggplot2::scale_fill_manual(values = c("Plus élevé parmi les exposés" = unname(osyr_palette["teal"]), "Plus élevé parmi les non exposés" = unname(osyr_palette["coral"]))) +
-    ggplot2::scale_y_continuous(labels = function(x) paste0(x, " pts"), expand = ggplot2::expansion(mult = c(0.15, 0.18))) +
-    ggplot2::labs(title = title, subtitle = subtitle, x = NULL, y = "Différence en points de pourcentage") +
-    theme_osyr()
-
-  save_plot(p, filename, width = 13, height = 8)
-}
-
-plot_diff(q5_known_cmp$diff, "10_diff_q5_connaissance_exposition.png", "Ce qui distingue le plus les doctorants exposés", "Différences pondérées de connaissance entre dispositif organisé et aucun dispositif.")
-plot_diff(q5_used_cmp$diff, "11_diff_q5_usage_exposition.png", "Usages associés à l'exposition aux dispositifs", "Différences pondérées d'usage déclaré entre dispositif organisé et aucun dispositif.")
-plot_diff(q13_yes_cmp$diff, "12_diff_q13_intentions_exposition.png", "Intentions : écarts entre exposés et non exposés", "Différences pondérées de réponses « oui ».", top_n = 8)
-plot_diff(q15_agree_cmp$diff, "13_diff_q15_representations_exposition.png", "Représentations : écarts entre exposés et non exposés", "Différences pondérées d'accord avec les affirmations.", top_n = 10)
-
-# Heatmaps : exposition × groupe × scores.
-plot_heatmap_group <- function(tab, filename, title, subtitle, x_lab = NULL) {
-  p <- tab |>
-    dplyr::mutate(
-      pct_label = round(100 * pct_w, 0),
-      item_label = stringr::str_wrap(item_label, 48)
-    ) |>
-    ggplot2::ggplot(ggplot2::aes(x = group, y = item_label, fill = pct_w)) +
-    ggplot2::geom_tile(color = "white", linewidth = 0.7) +
-    ggplot2::geom_text(ggplot2::aes(label = paste0(pct_label, "%")), size = 3.2, color = "#172A3A") +
-    ggplot2::scale_fill_gradient(low = "#EEF6F9", high = osyr_palette["teal"], labels = scales::percent_format(accuracy = 1)) +
-    ggplot2::labs(title = title, subtitle = subtitle, x = x_lab, y = NULL, fill = NULL) +
-    theme_osyr() +
-    ggplot2::theme(panel.grid = ggplot2::element_blank(), axis.text.x = ggplot2::element_text(angle = 18, hjust = 1))
-  save_plot(p, filename, width = 12, height = 8)
-}
-
-q5_known_year <- q5_long |>
-  dplyr::filter(!is.na(year), !is.na(known_well)) |>
-  dplyr::group_by(group = year, item, item_label) |>
-  dplyr::summarise(pct_w = w_prop(known_well, .weight), n = dplyr::n(), .groups = "drop")
-
-plot_heatmap_group(q5_known_year, "14_heatmap_q5_connaissance_par_annee.png", "Connaissance des notions selon l'année de thèse", "Part pondérée déclarant bien connaître chaque notion ou outil.")
-
-q5_known_disc <- q5_long |>
-  dplyr::filter(!is.na(discipline_broad), !is.na(known_well)) |>
-  dplyr::group_by(group = discipline_broad, item, item_label) |>
-  dplyr::summarise(pct_w = w_prop(known_well, .weight), n = dplyr::n(), .groups = "drop")
-
-plot_heatmap_group(q5_known_disc, "15_heatmap_q5_connaissance_par_discipline.png", "Connaissance des notions selon la discipline", "Part pondérée déclarant bien connaître chaque notion ou outil.")
-
-# =============================================================================
-# 9. Scores synthétiques
-# =============================================================================
-
-q13_open_vars <- intersect(q13_vars, c("q13_a1", "q13_a2", "q13_a3", "q13_a5"))
-q15_benefit_vars <- intersect(q15_vars, c("q15_a2", "q15_a4", "q15_a6"))
-q15_risk_vars <- intersect(q15_vars, c("q15_a1", "q15_a3"))
-q15_constraint_vars <- intersect(q15_vars, c("q15_a5", "q15_a7"))
-
-scores <- df |>
-  dplyr::mutate(
-    score_q4_activities = row_prop_codes(dplyr::cur_data_all(), q4_vars, yes_codes = 1, no_codes = 2),
-    score_q5_known_well = row_prop_codes(dplyr::cur_data_all(), q5_vars, yes_codes = c(3, 4), no_codes = c(1, 2)),
-    score_q5_used = row_prop_codes(dplyr::cur_data_all(), q5_vars, yes_codes = 4, no_codes = c(1, 2, 3)),
-    score_q12_incitation = row_prop_codes(dplyr::cur_data_all(), q12_vars, yes_codes = c(4, 5), no_codes = c(1, 2, 3, 97)),
-    score_q12_frein = row_prop_codes(dplyr::cur_data_all(), q12_vars, yes_codes = c(1, 2), no_codes = c(3, 4, 5, 97)),
-    score_q13_open_intentions = row_prop_codes(dplyr::cur_data_all(), q13_open_vars, yes_codes = 1, no_codes = c(2, 97)),
-    score_q15_benefits = row_prop_codes(dplyr::cur_data_all(), q15_benefit_vars, yes_codes = c(4, 5), no_codes = c(1, 2, 3)),
-    score_q15_risks = row_prop_codes(dplyr::cur_data_all(), q15_risk_vars, yes_codes = c(4, 5), no_codes = c(1, 2, 3)),
-    score_q15_constraints = row_prop_codes(dplyr::cur_data_all(), q15_constraint_vars, yes_codes = c(4, 5), no_codes = c(1, 2, 3))
-  )
-
-score_vars <- c(
-  "score_q4_activities",
-  "score_q5_known_well",
-  "score_q5_used",
-  "score_q12_incitation",
-  "score_q12_frein",
-  "score_q13_open_intentions",
-  "score_q15_benefits",
-  "score_q15_risks",
-  "score_q15_constraints"
-)
-
-score_labels <- tibble::tribble(
-  ~score, ~score_label,
-  "score_q4_activities", "Activités de recherche déjà réalisées",
-  "score_q5_known_well", "Notions et outils bien connus",
-  "score_q5_used", "Notions et outils déjà utilisés",
-  "score_q12_incitation", "Environnement perçu comme incitatif",
-  "score_q12_frein", "Environnement perçu comme un frein",
-  "score_q13_open_intentions", "Intentions de pratiques ouvertes",
-  "score_q15_benefits", "Bénéfices scientifiques perçus",
-  "score_q15_risks", "Risques individuels perçus",
-  "score_q15_constraints", "Contraintes institutionnelles/économiques perçues"
-)
-
-score_summary_by <- function(data, group_vars) {
-  data |>
-    dplyr::select(dplyr::all_of(c(group_vars, ".weight", score_vars))) |>
-    tidyr::pivot_longer(dplyr::all_of(score_vars), names_to = "score", values_to = "value") |>
-    dplyr::filter(!is.na(value), !is.na(.weight)) |>
-    dplyr::group_by(dplyr::across(dplyr::all_of(c(group_vars, "score")))) |>
-    dplyr::summarise(
-      n = dplyr::n(),
-      weighted_n = sum(.weight, na.rm = TRUE),
-      mean_w = w_mean(value, .weight),
-      .groups = "drop"
-    ) |>
-    dplyr::left_join(score_labels, by = "score")
-}
-
-scores_by_exposure <- score_summary_by(scores, "exposure2") |> write_table("scores_by_exposure2")
-scores_by_exposure_year <- score_summary_by(scores, c("exposure2", "year")) |> write_table("scores_by_exposure2_year")
-scores_by_exposure_disc <- score_summary_by(scores, c("exposure2", "discipline_broad")) |> write_table("scores_by_exposure2_discipline")
-scores_by_exposure_lang <- score_summary_by(scores, c("exposure2", "language_group")) |> write_table("scores_by_exposure2_language")
-scores_by_intensity <- score_summary_by(scores, "training_intensity") |> write_table("scores_by_training_intensity")
-
-# Différences de scores exposés vs non exposés.
-score_diff_exposure <- scores_by_exposure |>
-  dplyr::select(exposure2, score, score_label, mean_w, n, weighted_n) |>
-  tidyr::pivot_wider(names_from = exposure2, values_from = c(mean_w, n, weighted_n), names_sep = "__") |>
-  janitor::clean_names() |>
-  dplyr::mutate(
-    diff_pp = 100 * (mean_w_dispositif_organise - mean_w_aucun_dispositif)
-  ) |>
-  dplyr::arrange(dplyr::desc(abs(diff_pp))) |>
-  write_table("score_diff_exposure2")
-
-p_score_diff <- score_diff_exposure |>
-  dplyr::mutate(
-    score_label = forcats::fct_reorder(score_label, diff_pp),
-    direction = dplyr::if_else(diff_pp >= 0, "Plus élevé parmi les exposés", "Plus élevé parmi les non exposés")
-  ) |>
-  ggplot2::ggplot(ggplot2::aes(x = score_label, y = diff_pp, fill = direction)) +
-  ggplot2::geom_col(width = 0.68) +
-  ggplot2::geom_hline(yintercept = 0, color = "#344054", linewidth = 0.45) +
-  ggplot2::geom_text(
-    ggplot2::aes(label = paste0(ifelse(diff_pp > 0, "+", ""), round(diff_pp, 1), " pts")),
-    hjust = dplyr::if_else(score_diff_exposure$diff_pp >= 0, -0.08, 1.08),
-    size = 3.6,
-    color = osyr_palette["navy"]
-  ) +
-  ggplot2::coord_flip(clip = "off") +
-  ggplot2::scale_fill_manual(values = c("Plus élevé parmi les exposés" = unname(osyr_palette["teal"]), "Plus élevé parmi les non exposés" = unname(osyr_palette["coral"]))) +
-  ggplot2::scale_y_continuous(labels = function(x) paste0(x, " pts"), expand = ggplot2::expansion(mult = c(0.12, 0.18))) +
-  ggplot2::labs(
-    title = "Ce que change l'exposition aux dispositifs",
-    subtitle = "Différence pondérée de scores moyens : dispositif organisé moins aucun dispositif.",
-    x = NULL,
-    y = "Différence en points de pourcentage"
-  ) +
-  theme_osyr()
-
-save_plot(p_score_diff, "16_scores_difference_exposition.png", width = 12, height = 7.2)
-
-# Figure synthèse premium : quatre messages en une page.
-# Utile pour réunion de consortium ou diapositive de discussion.
-make_kpi_tile <- function(value, title, subtitle, fill = unname(osyr_palette["navy"])) {
-  ggplot2::ggplot() +
-    ggplot2::annotate("rect", xmin = 0, xmax = 1, ymin = 0, ymax = 1, fill = fill, alpha = 0.96) +
-    ggplot2::annotate("text", x = 0.06, y = 0.68, label = value, hjust = 0, color = "white", size = 9, fontface = "bold") +
-    ggplot2::annotate("text", x = 0.06, y = 0.38, label = title, hjust = 0, color = "white", size = 4.4, fontface = "bold") +
-    ggplot2::annotate("text", x = 0.06, y = 0.18, label = subtitle, hjust = 0, color = "#F2F4F7", size = 3.3) +
-    ggplot2::coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), clip = "off") +
-    ggplot2::theme_void()
-}
-
-kpi_exposed <- sample_exposure |>
-  dplyr::filter(category == "Dispositif organisé") |>
-  dplyr::pull(pct_w) |>
-  (\(x) if (length(x) == 0) NA_real_ else x[1])()
-
-kpi_english <- sample_language |>
-  dplyr::filter(category == "Questionnaire en anglais") |>
-  dplyr::pull(pct_w) |>
-  (\(x) if (length(x) == 0) NA_real_ else x[1])()
-
-kpi_known_effect <- score_diff_exposure |>
-  dplyr::filter(score_label == "Notions et outils bien connus") |>
-  dplyr::pull(diff_pp) |>
-  (\(x) if (length(x) == 0) NA_real_ else x[1])()
-
-kpi_context_effect <- score_diff_exposure |>
-  dplyr::filter(score_label == "Environnement perçu comme incitatif") |>
-  dplyr::pull(diff_pp) |>
-  (\(x) if (length(x) == 0) NA_real_ else x[1])()
-
-kpi1 <- make_kpi_tile(safe_pct(kpi_exposed, 0.1), "ont suivi un dispositif organisé", "Exposition construite à partir de Q8", unname(osyr_palette["teal"]))
-kpi2 <- make_kpi_tile(safe_pct(kpi_english, 0.1), "ont répondu en anglais", "Proxy prudent d'un profil international", unname(osyr_palette["cyan"]))
-kpi3 <- make_kpi_tile(paste0("+", round(kpi_known_effect, 1), " pts"), "sur les notions bien connues", "Écart brut : exposés − non exposés", unname(osyr_palette["blue"]))
-kpi4 <- make_kpi_tile(paste0("+", round(kpi_context_effect, 1), " pts"), "sur l'environnement incitatif", "Écart brut : exposés − non exposés", unname(osyr_palette["purple"]))
-
-p_dashboard <- (kpi1 | kpi2 | kpi3 | kpi4) /
-  (p_score_diff + ggplot2::labs(title = "Lecture synthétique : ce que l'exposition change surtout")) +
-  patchwork::plot_layout(heights = c(0.55, 1.45)) +
-  patchwork::plot_annotation(
-    title = "OSYR — premiers résultats structurants",
-    subtitle = "Les dispositifs sont surtout associés aux connaissances et à la perception d'un environnement incitatif ; beaucoup moins aux intentions et aux attitudes générales.",
-    caption = "Enquête OSYR V2 corrigée · résultats pondérés par Poids · comparaisons descriptives, non causales.",
-    theme = theme_osyr(base_size = 13) +
-      ggplot2::theme(
-        plot.title = ggplot2::element_text(size = 24, face = "bold", color = unname(osyr_palette["navy"])),
-        plot.subtitle = ggplot2::element_text(size = 13, color = "#475467")
-      )
-  )
-
-save_plot(p_dashboard, "00_dashboard_synthese_premium.png", width = 16, height = 10)
-
-# Heatmap score × année × exposition.
-plot_score_heatmap <- function(tab, group_var, filename, title, subtitle) {
-  group_var <- rlang::ensym(group_var)
-  p <- tab |>
-    dplyr::filter(!is.na(exposure2), !is.na(!!group_var)) |>
-    dplyr::mutate(
-      facet_group = !!group_var,
-      score_label = stringr::str_wrap(score_label, 38),
-      label = paste0(round(100 * mean_w, 0), "%")
-    ) |>
-    ggplot2::ggplot(ggplot2::aes(x = exposure2, y = score_label, fill = mean_w)) +
-    ggplot2::geom_tile(color = "white", linewidth = 0.7) +
-    ggplot2::geom_text(ggplot2::aes(label = label), size = 3.1, color = osyr_palette["navy"]) +
-    ggplot2::facet_wrap(~ facet_group, nrow = 1) +
-    ggplot2::scale_fill_gradient(low = "#F2F4F7", high = osyr_palette["teal"], labels = scales::percent_format(accuracy = 1)) +
-    ggplot2::labs(title = title, subtitle = subtitle, x = NULL, y = NULL, fill = NULL) +
-    theme_osyr(base_size = 11) +
-    ggplot2::theme(panel.grid = ggplot2::element_blank(), axis.text.x = ggplot2::element_text(angle = 18, hjust = 1))
-  save_plot(p, filename, width = 16, height = 7.5)
-}
-
-plot_score_heatmap(scores_by_exposure_year, year, "17_heatmap_scores_exposition_annee.png", "Scores par exposition et année de thèse", "Lecture horizontale : comparaison des exposés et non exposés à année de thèse donnée.")
-plot_score_heatmap(scores_by_exposure_lang, language_group, "18_heatmap_scores_exposition_langue.png", "Scores par exposition et langue du questionnaire", "Comparaison des profils ayant répondu en français et en anglais.")
-
-# =============================================================================
-# 10. Modèles ajustés robustes
-# =============================================================================
-
-scores_model <- scores |>
-  dplyr::filter(!is.na(exposure2)) |>
-  dplyr::mutate(
-    exposure2 = forcats::fct_drop(factor(exposure2)),
-    year = forcats::fct_drop(factor(year)),
-    discipline_broad = forcats::fct_drop(factor(discipline_broad)),
-    language_group = forcats::fct_drop(factor(language_group)),
-    institution_lump = forcats::fct_lump_min(factor(institution), min = 35, other_level = "Autres établissements") |>
-      forcats::fct_drop()
-  )
-
-model_predictors <- c("exposure2", "year", "discipline_broad", "institution_lump", "language_group")
-
-prepare_model_data <- function(data, outcome, predictors) {
-  vars_needed <- c(outcome, predictors, ".weight")
-
-  dat0 <- data |>
-    dplyr::select(dplyr::any_of(vars_needed)) |>
-    dplyr::filter(!is.na(.data[[outcome]]), !is.na(.weight), .weight > 0)
-
-  predictors <- predictors[predictors %in% names(dat0)]
-
-  repeat {
-    dat <- dat0 |> tidyr::drop_na(dplyr::all_of(predictors))
-
-    dat <- dat |>
-      dplyr::mutate(
-        dplyr::across(
-          dplyr::any_of(predictors),
-          ~ if (is.factor(.x) || is.character(.x)) forcats::fct_drop(factor(.x)) else .x
-        )
-      )
-
-    usable_predictors <- predictors[
-      purrr::map_lgl(predictors, \(v) dplyr::n_distinct(dat[[v]], na.rm = TRUE) >= 2)
-    ]
-
-    if (identical(usable_predictors, predictors)) break
-    predictors <- usable_predictors
-    if (length(predictors) == 0) break
-  }
-
-  list(data = dat, predictors = predictors)
-}
-
-fit_score_model <- function(outcome) {
-  prepared <- prepare_model_data(scores_model, outcome, model_predictors)
-  dat <- prepared$data
-  predictors <- prepared$predictors
-
-  if (!"exposure2" %in% predictors || length(predictors) == 0 || nrow(dat) < 40) {
-    return(tibble::tibble(
-      outcome = outcome,
-      model = "main_adjusted",
-      term = NA_character_,
-      estimate = NA_real_,
-      std.error = NA_real_,
-      statistic = NA_real_,
-      p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
-      n_model = nrow(dat),
-      predictors_used = paste(predictors, collapse = " + "),
-      note = "Modèle non estimable : exposition ou prédicteurs insuffisamment variables."
-    ))
-  }
-
-  rhs <- paste(predictors, collapse = " + ")
-  f <- stats::as.formula(paste(outcome, "~", rhs))
-  design_tmp <- survey::svydesign(ids = ~1, weights = ~.weight, data = dat)
-
-  tryCatch({
-    model <- survey::svyglm(f, design = design_tmp)
-    broom::tidy(model, conf.int = TRUE) |>
-      dplyr::mutate(
-        outcome = outcome,
-        model = "main_adjusted",
-        n_model = nrow(dat),
-        predictors_used = rhs,
-        note = NA_character_
-      )
-  }, error = function(e) {
-    tibble::tibble(
-      outcome = outcome,
-      model = "main_adjusted",
-      term = NA_character_,
-      estimate = NA_real_,
-      std.error = NA_real_,
-      statistic = NA_real_,
-      p.value = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
-      n_model = nrow(dat),
-      predictors_used = rhs,
-      note = paste("Erreur modèle :", conditionMessage(e))
-    )
-  })
-}
-
-score_models_main <- purrr::map_dfr(score_vars, fit_score_model) |>
-  dplyr::left_join(score_labels, by = c("outcome" = "score")) |>
-  dplyr::relocate(outcome, score_label, model, n_model, predictors_used, note)
-
-write_model(score_models_main, "score_models_main_adjusted")
-
-score_exposure_effects <- score_models_main |>
-  dplyr::filter(is.na(note), stringr::str_detect(term, "^exposure2")) |>
-  dplyr::mutate(
-    estimate_pp = 100 * estimate,
-    conf_low_pp = 100 * conf.low,
-    conf_high_pp = 100 * conf.high,
-    score_label_clean = stringr::str_replace_all(score_label, "\\s+", " "),
-    score_label_plot = stringr::str_wrap(score_label_clean, 42),
-    association = model_interpretation(estimate_pp, conf_low_pp, conf_high_pp, p.value),
-    association_group = dplyr::case_when(
-      stringr::str_detect(association, "positive") ~ "Association positive claire",
-      stringr::str_detect(association, "négative") ~ "Association négative claire",
-      TRUE ~ "Pas d'association claire"
-    ),
-    label_est = dplyr::if_else(
-      estimate_pp >= 0,
-      paste0("+", round(estimate_pp, 1), " pts"),
-      paste0(round(estimate_pp, 1), " pts")
-    )
-  ) |>
-  dplyr::arrange(dplyr::desc(estimate_pp)) |>
-  write_model("score_models_exposure_effects")
-
-score_exposure_effects_summary <- score_exposure_effects |>
-  dplyr::transmute(
-    score = score_label_clean,
-    effet_ajuste = estimate_pp,
-    ic95_bas = conf_low_pp,
-    ic95_haut = conf_high_pp,
-    p_value = p.value,
-    interpretation = association,
-    lecture = dplyr::case_when(
-      association_group == "Association positive claire" ~
-        paste0("Les doctorants exposés à un dispositif organisé ont un score plus élevé de ",
-               round(estimate_pp, 1), " points, à caractéristiques comparables."),
-      association_group == "Association négative claire" ~
-        paste0("Les doctorants exposés à un dispositif organisé ont un score plus faible de ",
-               abs(round(estimate_pp, 1)), " points, à caractéristiques comparables."),
-      TRUE ~
-        "L'intervalle de confiance recoupe 0 : l'enquête ne permet pas de conclure à une association claire."
-    )
-  ) |>
-  write_model("score_models_exposure_effects_summary")
-
-# Sous-titre dynamique : il décrit les prédicteurs réellement conservés
-# dans les modèles après contrôles de variance et valeurs manquantes.
-predictors_used_main <- score_exposure_effects |>
-  dplyr::filter(!is.na(predictors_used)) |>
-  dplyr::pull(predictors_used) |>
-  unique()
-
-predictor_text <- function(x) {
-  refs <- c()
-  if (any(stringr::str_detect(x, "year"))) refs <- c(refs, "année de thèse")
-  if (any(stringr::str_detect(x, "discipline_broad"))) refs <- c(refs, "discipline")
-  if (any(stringr::str_detect(x, "institution_lump"))) refs <- c(refs, "établissement")
-  if (any(stringr::str_detect(x, "language_group"))) refs <- c(refs, "langue du questionnaire")
-  if (length(refs) == 0) return("les variables disponibles dans le modèle")
-  paste(refs, collapse = ", ") |>
-    stringr::str_replace(", ([^,]*)$", " et \\1")
-}
-
-model_subtitle <- paste0(
-  "Différences ajustées en points de pourcentage, après prise en compte de ",
-  predictor_text(predictors_used_main), "."
-)
-
-model_cols <- c(
-  "Association positive claire" = unname(osyr_palette["teal"]),
-  "Association négative claire" = unname(osyr_palette["coral"]),
-  "Pas d'association claire" = "#98A2B3"
-)
-
-# Figure principale de modélisation :
-# C'est la figure à utiliser dans une restitution. Elle montre le résultat
-# central des modèles : ce qui reste associé à l'exposition après ajustement.
-p_model_highlevel <- score_exposure_effects |>
-  dplyr::mutate(score_label_plot = forcats::fct_reorder(score_label_plot, estimate_pp)) |>
-  ggplot2::ggplot(ggplot2::aes(x = estimate_pp, y = score_label_plot, color = association_group)) +
-  ggplot2::geom_vline(xintercept = 0, color = "#344054", linewidth = 0.55) +
-  ggplot2::geom_errorbarh(
-    ggplot2::aes(xmin = conf_low_pp, xmax = conf_high_pp),
-    height = 0.18,
-    linewidth = 1.05,
-    alpha = 0.85
-  ) +
-  ggplot2::geom_point(size = 4.2) +
-  ggplot2::geom_text(
-    ggplot2::aes(label = label_est),
-    hjust = dplyr::if_else(score_exposure_effects$estimate_pp >= 0, -0.12, 1.12),
-    size = 3.7,
-    color = unname(osyr_palette["navy"]),
-    fontface = "bold"
-  ) +
-  ggplot2::scale_color_manual(values = model_cols, drop = TRUE) +
-  ggplot2::scale_x_continuous(
-    labels = function(x) paste0(x, " pts"),
-    expand = ggplot2::expansion(mult = c(0.10, 0.16))
-  ) +
-  ggplot2::labs(
-    title = "Ce que change vraiment l'exposition à un dispositif organisé",
-    subtitle = model_subtitle,
-    x = "Différence ajustée en points de pourcentage",
-    y = NULL,
-    caption = paste(
-      "Lecture : chaque point compare les doctorants exposés à un dispositif organisé aux doctorants sans dispositif organisé.",
-      "Les barres indiquent les intervalles de confiance à 95 %. À droite de 0 = score plus élevé chez les exposés.",
-      "Les effets en gris ne permettent pas de conclure à une association claire."
-    )
-  ) +
-  theme_osyr(base_size = 13) +
-  ggplot2::theme(
-    legend.position = "bottom",
-    panel.grid.major.y = ggplot2::element_blank(),
-    plot.caption = ggplot2::element_text(size = 9.5, color = "#667085", hjust = 0)
-  ) +
-  ggplot2::coord_cartesian(clip = "off")
-
-save_plot(p_model_highlevel, "19_modeles_scores_effet_exposition_highlevel.png", width = 13.5, height = 7.6)
-
-# Version synthétique en "blocs" : utile dans un rapport pour distinguer
-# les dimensions fortement, modérément ou faiblement associées aux dispositifs.
-model_blocks <- score_exposure_effects |>
-  dplyr::mutate(
-    bloc = dplyr::case_when(
-      stringr::str_detect(association, "forte") ~ "Effets robustes et importants",
-      stringr::str_detect(association, "modérée|faible") ~ "Effets robustes mais plus modestes",
-      TRUE ~ "Effets faibles ou incertains"
-    ),
-    bloc = factor(
-      bloc,
-      levels = c(
-        "Effets robustes et importants",
-        "Effets robustes mais plus modestes",
-        "Effets faibles ou incertains"
-      )
-    ),
-    score_label_plot = stringr::str_wrap(score_label_clean, 35),
-    score_label_plot = forcats::fct_reorder(score_label_plot, estimate_pp)
-  )
-
-p_model_blocks <- model_blocks |>
-  ggplot2::ggplot(ggplot2::aes(x = estimate_pp, y = score_label_plot, fill = association_group)) +
-  ggplot2::geom_vline(xintercept = 0, color = "#344054", linewidth = 0.45) +
-  ggplot2::geom_col(width = 0.68) +
-  ggplot2::geom_text(
-    ggplot2::aes(label = label_est),
-    hjust = dplyr::if_else(model_blocks$estimate_pp >= 0, -0.12, 1.12),
-    size = 3.5,
-    color = unname(osyr_palette["navy"]),
-    fontface = "bold"
-  ) +
-  ggplot2::facet_grid(bloc ~ ., scales = "free_y", space = "free_y") +
-  ggplot2::scale_fill_manual(values = model_cols, drop = TRUE) +
-  ggplot2::scale_x_continuous(
-    labels = function(x) paste0(x, " pts"),
-    expand = ggplot2::expansion(mult = c(0.12, 0.18))
-  ) +
-  ggplot2::labs(
-    title = "Synthèse interprétative des effets ajustés",
-    subtitle = "Les dispositifs se distinguent surtout par la connaissance, l'usage et l'environnement perçu comme incitatif.",
-    x = "Différence ajustée en points de pourcentage",
-    y = NULL,
-    caption = "Lecture : valeurs positives = score plus élevé parmi les doctorants exposés à un dispositif organisé. Les effets sont associatifs et non causaux."
-  ) +
-  theme_osyr(base_size = 12.5) +
-  ggplot2::theme(
-    strip.text.y = ggplot2::element_text(angle = 0, hjust = 0, face = "bold"),
-    panel.grid.major.y = ggplot2::element_blank()
-  ) +
-  ggplot2::coord_cartesian(clip = "off")
-
-save_plot(p_model_blocks, "19b_modeles_scores_synthese_blocs.png", width = 13.5, height = 8.8)
-
-# Interactions : exposition × année, discipline, langue.
-fit_interaction_model <- function(outcome, moderator) {
-  controls <- c("discipline_broad", "institution_lump", "language_group", "year")
-  controls <- setdiff(controls, moderator)
-  predictors <- c("exposure2", moderator, paste0("exposure2:", moderator), controls)
-
-  base_vars <- unique(c(outcome, "exposure2", moderator, controls, ".weight"))
-  dat <- scores_model |>
-    dplyr::select(dplyr::any_of(base_vars)) |>
-    tidyr::drop_na() |>
-    dplyr::mutate(dplyr::across(where(is.factor), forcats::fct_drop))
-
-  if (nrow(dat) < 80 || dplyr::n_distinct(dat$exposure2) < 2 || dplyr::n_distinct(dat[[moderator]]) < 2) {
-    return(tibble::tibble(outcome = outcome, moderator = moderator, note = "Modèle interaction non estimable"))
-  }
-
-  # Retire les contrôles sans variance après drop_na.
-  controls <- controls[purrr::map_lgl(controls, \(v) dplyr::n_distinct(dat[[v]], na.rm = TRUE) >= 2)]
-  rhs <- paste(c("exposure2", moderator, paste0("exposure2:", moderator), controls), collapse = " + ")
-  f <- stats::as.formula(paste(outcome, "~", rhs))
-  des <- survey::svydesign(ids = ~1, weights = ~.weight, data = dat)
-
-  tryCatch({
-    broom::tidy(survey::svyglm(f, design = des), conf.int = TRUE) |>
-      dplyr::mutate(outcome = outcome, moderator = moderator, n_model = nrow(dat), note = NA_character_)
-  }, error = function(e) {
-    tibble::tibble(outcome = outcome, moderator = moderator, note = conditionMessage(e))
-  })
-}
-
-interaction_models <- tidyr::crossing(
-  outcome = score_vars,
-  moderator = c("year", "discipline_broad", "language_group")
-) |>
-  dplyr::mutate(res = purrr::map2(outcome, moderator, fit_interaction_model)) |>
-  # Les tibble retournées par fit_interaction_model contiennent déjà outcome et moderator.
-  # On retire donc les colonnes externes avant unnest pour éviter la duplication de noms.
-  dplyr::select(-outcome, -moderator) |>
-  tidyr::unnest(res, names_repair = "unique") |>
-  dplyr::left_join(score_labels, by = c("outcome" = "score"))
-
-write_model(interaction_models, "score_models_interactions")
-
-# Représentation synthétique des interactions :
-# l'objectif n'est pas de surinterpréter chaque coefficient, mais de repérer
-# si l'association entre exposition et scores semble varier fortement selon
-# l'année, la discipline ou la langue du questionnaire.
-interaction_terms <- interaction_models |>
-  dplyr::filter(is.na(note), stringr::str_detect(term, "^exposure2Dispositif organisé:")) |>
-  dplyr::mutate(
-    estimate_pp = 100 * estimate,
-    conf_low_pp = 100 * conf.low,
-    conf_high_pp = 100 * conf.high,
-    interaction_label = term |>
-      stringr::str_replace("^exposure2Dispositif organisé:", "") |>
-      stringr::str_replace("^year", "Année : ") |>
-      stringr::str_replace("^discipline_broad", "Discipline : ") |>
-      stringr::str_replace("^language_group", "Langue : ") |>
-      stringr::str_wrap(width = 44),
-    score_label_plot = stringr::str_wrap(score_label, 38),
-    evidence = dplyr::case_when(
-      p.value < 0.05 & conf_low_pp > 0 ~ "Interaction positive claire",
-      p.value < 0.05 & conf_high_pp < 0 ~ "Interaction négative claire",
-      TRUE ~ "Interaction incertaine"
-    )
-  ) |>
-  write_model("score_models_interaction_terms")
-
-interaction_terms_plot <- interaction_terms |>
-  dplyr::arrange(p.value, dplyr::desc(abs(estimate_pp))) |>
-  dplyr::slice_head(n = 18)
-
-if (nrow(interaction_terms_plot) > 0) {
-  interaction_cols <- c(
-    "Interaction positive claire" = unname(osyr_palette["teal"]),
-    "Interaction négative claire" = unname(osyr_palette["coral"]),
-    "Interaction incertaine" = "#98A2B3"
-  )
-
-  p_interactions <- interaction_terms_plot |>
-    dplyr::mutate(
-      label_plot = paste0(score_label_plot, "\n", interaction_label),
-      label_plot = forcats::fct_reorder(label_plot, estimate_pp),
-      label_est = dplyr::if_else(
-        estimate_pp >= 0,
-        paste0("+", round(estimate_pp, 1), " pts"),
-        paste0(round(estimate_pp, 1), " pts")
-      )
-    ) |>
-    ggplot2::ggplot(ggplot2::aes(x = estimate_pp, y = label_plot, color = evidence)) +
-    ggplot2::geom_vline(xintercept = 0, color = "#344054", linewidth = 0.45) +
-    ggplot2::geom_errorbarh(
-      ggplot2::aes(xmin = conf_low_pp, xmax = conf_high_pp),
-      height = 0.16,
-      linewidth = 0.9,
-      alpha = 0.85
-    ) +
-    ggplot2::geom_point(size = 3.2) +
-    ggplot2::geom_text(
-      ggplot2::aes(label = label_est),
-      hjust = dplyr::if_else(interaction_terms_plot$estimate_pp >= 0, -0.10, 1.10),
-      size = 3.1,
-      color = unname(osyr_palette["navy"])
-    ) +
-    ggplot2::scale_color_manual(values = interaction_cols, drop = TRUE) +
     ggplot2::scale_x_continuous(
-      labels = function(x) paste0(x, " pts"),
-      expand = ggplot2::expansion(mult = c(0.12, 0.18))
+      labels = scales::percent_format(accuracy = 1),
+      limits = c(0, min(1, max(q8_language_plot_data$pct_respondents_w, na.rm = TRUE) * 1.22))
+    ) +
+    ggplot2::scale_fill_manual(
+      values = c(
+        "Questionnaire en français" = unname(osyr_palette["navy"]),
+        "Questionnaire en anglais" = unname(osyr_palette["cyan"])
+      ),
+      drop = TRUE
     ) +
     ggplot2::labs(
-      title = "Où l'association avec les dispositifs varie-t-elle ?",
-      subtitle = "Principaux termes d'interaction exposition × année, discipline ou langue du questionnaire.",
-      x = "Différence additionnelle associée au groupe",
+      title = "Dispositifs Q8 détaillés selon la langue du questionnaire",
+      subtitle = "Part des répondants de chaque groupe ayant coché chaque modalité.",
+      x = "Part pondérée dans chaque groupe de langue",
       y = NULL,
-      caption = paste(
-        "Lecture : un terme d'interaction indique si l'écart entre exposés et non exposés est plus fort ou plus faible",
-        "dans un groupe donné que dans le groupe de référence. Ces résultats sont exploratoires."
-      )
+      caption = "Question multiréponse. La langue du questionnaire est un proxy, pas une variable d'identité."
     ) +
-    theme_osyr(base_size = 11.5) +
-    ggplot2::theme(panel.grid.major.y = ggplot2::element_blank()) +
-    ggplot2::coord_cartesian(clip = "off")
+    theme_osyr(base_size = 10.5)
 
-  save_plot(p_interactions, "23b_modeles_interactions_synthese.png", width = 14.5, height = 9.5)
+  save_plot(p_q8_devices_language, "02c_distribution_dispositifs_q8_detail_par_langue.png", width = 13.5, height = 8.2)
 }
 
+# -----------------------------------------------------------------------------
+# 9. IC de l'exposition organisée par toutes les disciplines détaillées
+# -----------------------------------------------------------------------------
 
-# Prédictions ajustées pour un score central : connaissance bien connue.
-make_prediction_grid <- function(outcome, moderator) {
-  controls <- c("discipline_broad", "institution_lump", "language_group", "year")
-  controls <- setdiff(controls, moderator)
-  base_vars <- unique(c(outcome, "exposure2", moderator, controls, ".weight"))
+df_survey <- df |> dplyr::filter(!is.na(.weight), .weight > 0)
+design <- survey::svydesign(ids = ~1, weights = ~.weight, data = df_survey)
 
-  dat <- scores_model |>
-    dplyr::select(dplyr::any_of(base_vars)) |>
-    tidyr::drop_na() |>
-    dplyr::mutate(dplyr::across(where(is.factor), forcats::fct_drop))
-
-  if (nrow(dat) < 80) return(tibble())
-
-  controls <- controls[purrr::map_lgl(controls, \(v) dplyr::n_distinct(dat[[v]], na.rm = TRUE) >= 2)]
-  rhs <- paste(c("exposure2", moderator, paste0("exposure2:", moderator), controls), collapse = " + ")
-  f <- stats::as.formula(paste(outcome, "~", rhs))
-  des <- survey::svydesign(ids = ~1, weights = ~.weight, data = dat)
-
-  model <- tryCatch(survey::svyglm(f, design = des), error = function(e) NULL)
-  if (is.null(model)) return(tibble())
-
-  grid <- tidyr::expand_grid(
-    exposure2 = levels(dat$exposure2),
-    moderator_value = levels(dat[[moderator]])
-  )
-  names(grid)[names(grid) == "moderator_value"] <- moderator
-
-  for (ctrl in controls) {
-    if (!ctrl %in% names(grid)) {
-      ref <- names(sort(table(dat[[ctrl]]), decreasing = TRUE))[1]
-      grid[[ctrl]] <- factor(ref, levels = levels(dat[[ctrl]]))
-    }
-  }
-  grid$exposure2 <- factor(grid$exposure2, levels = levels(dat$exposure2))
-  grid[[moderator]] <- factor(grid[[moderator]], levels = levels(dat[[moderator]]))
-
-  # Selon les versions du package survey, predict.svyglm(..., se.fit = TRUE)
-  # peut retourner soit une liste avec fit/se.fit, soit un vecteur de classe
-  # svystat avec une variance attachée. Cette extraction robuste gère les deux cas.
-  pred <- predict(model, newdata = grid, se.fit = TRUE)
-
-  if (is.list(pred) && !is.null(pred$fit)) {
-    fit <- as.numeric(pred$fit)
-    se <- as.numeric(pred$se.fit)
-  } else {
-    fit <- as.numeric(pred)
-    se <- tryCatch(
-      as.numeric(survey::SE(pred)),
-      error = function(e) {
-        var_pred <- attr(pred, "var")
-        if (!is.null(var_pred)) {
-          sqrt(diag(as.matrix(var_pred)))
-        } else {
-          rep(NA_real_, length(fit))
-        }
-      }
-    )
-  }
-
-  if (length(se) != length(fit)) {
-    se <- rep(NA_real_, length(fit))
-  }
-
-  grid |>
-    dplyr::mutate(
-      outcome = outcome,
-      moderator = moderator,
-      fit = fit,
-      se = se,
-      conf.low = fit - 1.96 * se,
-      conf.high = fit + 1.96 * se
-    )
-}
-
-interaction_predictions <- purrr::map_dfr(
-  c("year", "discipline_broad", "language_group"),
-  \(m) make_prediction_grid("score_q5_known_well", m)
-)
-
-write_model(interaction_predictions, "predictions_interactions_score_q5_known_well")
-
-plot_prediction <- function(preds, moderator, filename, title, subtitle) {
-  tab <- preds |> dplyr::filter(moderator == !!moderator)
-  if (nrow(tab) == 0) return(invisible(NULL))
-  p <- tab |>
-    ggplot2::ggplot(ggplot2::aes(x = .data[[moderator]], y = fit, color = exposure2, group = exposure2)) +
-    ggplot2::geom_line(linewidth = 1.05) +
-    ggplot2::geom_point(size = 2.8) +
-    ggplot2::geom_errorbar(ggplot2::aes(ymin = conf.low, ymax = conf.high), width = 0.10, alpha = 0.65) +
-    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, NA)) +
-    ggplot2::scale_color_manual(values = exposure_colors[c("Aucun dispositif", "Dispositif organisé")]) +
-    ggplot2::labs(title = title, subtitle = subtitle, x = NULL, y = "Valeur prédite ajustée") +
-    theme_osyr() +
-    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 18, hjust = 1))
-  save_plot(p, filename, width = 13, height = 6.7)
-}
-
-plot_prediction(interaction_predictions, "year", "20_prediction_connaissance_exposition_annee.png", "Connaissance ajustée selon exposition et année", "Score Q5 prédit par le modèle, avec contrôles fixés à leur modalité la plus fréquente.")
-plot_prediction(interaction_predictions, "discipline_broad", "21_prediction_connaissance_exposition_discipline.png", "Connaissance ajustée selon exposition et discipline", "Score Q5 prédit par le modèle, avec contrôles fixés à leur modalité la plus fréquente.")
-plot_prediction(interaction_predictions, "language_group", "22_prediction_connaissance_exposition_langue.png", "Connaissance ajustée selon exposition et langue", "Score Q5 prédit par le modèle, avec contrôles fixés à leur modalité la plus fréquente.")
-
-# =============================================================================
-# 11. Sensibilité : pondération de propension simplifiée
-# =============================================================================
-
-propensity_data <- scores_model |>
-  dplyr::filter(!is.na(exposure2)) |>
-  dplyr::mutate(treat = as.integer(exposure2 == "Dispositif organisé")) |>
-  dplyr::select(treat, .weight, year, discipline_broad, institution_lump, language_group, dplyr::all_of(score_vars)) |>
-  tidyr::drop_na(treat, .weight, year, discipline_broad, institution_lump, language_group)
-
-propensity_model <- tryCatch(
-  stats::glm(treat ~ year + discipline_broad + institution_lump + language_group, data = propensity_data, family = binomial()),
-  error = function(e) NULL
-)
-
-if (!is.null(propensity_model)) {
-  propensity_data <- propensity_data |>
-    dplyr::mutate(
-      ps = pmin(pmax(stats::predict(propensity_model, type = "response"), 0.02), 0.98),
-      ipw = dplyr::if_else(treat == 1, 1 / ps, 1 / (1 - ps)),
-      combined_weight = .weight * ipw,
-      exposure2 = factor(dplyr::if_else(treat == 1, "Dispositif organisé", "Aucun dispositif"), levels = c("Aucun dispositif", "Dispositif organisé"))
-    )
-
-  ps_summary <- propensity_data |>
-    dplyr::group_by(exposure2) |>
-    dplyr::summarise(
-      n = dplyr::n(),
-      ps_mean = mean(ps),
-      ps_min = min(ps),
-      ps_max = max(ps),
-      ipw_mean = mean(ipw),
-      ipw_p99 = stats::quantile(ipw, .99),
-      .groups = "drop"
-    )
-
-  write_table(ps_summary, "propensity_score_diagnostics", subdir = "diagnostics")
-
-  ipw_score_diff <- purrr::map_dfr(score_vars, function(s) {
-    dat <- propensity_data |> dplyr::filter(!is.na(.data[[s]]))
-    dat |>
-      dplyr::group_by(exposure2) |>
-      dplyr::summarise(mean_ipw = w_mean(.data[[s]], combined_weight), n = dplyr::n(), .groups = "drop") |>
-      tidyr::pivot_wider(names_from = exposure2, values_from = c(mean_ipw, n), names_sep = "__") |>
-      janitor::clean_names() |>
-      dplyr::mutate(score = s, diff_pp_ipw = 100 * (mean_ipw_dispositif_organise - mean_ipw_aucun_dispositif))
-  }) |>
-    dplyr::left_join(score_labels, by = "score")
-
-  write_table(ipw_score_diff, "score_diff_exposure_ipw_sensitivity")
-}
-
-# =============================================================================
-# 12. Analyse des réponses multiples Q8, Q9, Q14, Q6
-# =============================================================================
-
-multi_context <- c("respondent_id", ".weight", "exposure3", "exposure2", "year", "discipline_broad", "institution", "language_group")
-
-q8_long <- extract_multi(df, "q8", multi_context) |>
-  dplyr::left_join(answer_labels |> dplyr::filter(base == "q8") |> dplyr::rename(choice_label = value), by = c("code" = "code")) |>
-  write_table("q8_long", subdir = "data_clean")
-
-q9_long <- extract_multi(df, "q9", multi_context) |>
-  dplyr::left_join(answer_labels |> dplyr::filter(base == "q9") |> dplyr::rename(choice_label = value), by = c("code" = "code")) |>
-  write_table("q9_long", subdir = "data_clean")
-
-summarise_multi <- function(long_data, name) {
-  if (nrow(long_data) == 0) return(tibble())
-  long_data |>
-    dplyr::filter(!is.na(choice_label)) |>
-    dplyr::group_by(code, choice_label) |>
-    dplyr::summarise(
-      n_mentions = dplyr::n(),
-      weighted_mentions = sum(.weight, na.rm = TRUE),
-      n_respondents = dplyr::n_distinct(respondent_id),
-      .groups = "drop"
-    ) |>
-    dplyr::arrange(dplyr::desc(weighted_mentions)) |>
-    write_table(name)
-}
-
-q8_multi_summary <- summarise_multi(q8_long, "q8_multi_summary")
-q9_multi_summary <- summarise_multi(q9_long, "q9_multi_summary")
-
-# Analyse des raisons Q14, si les variables sont présentes.
-q14_bases <- names(df) |>
-  stringr::str_subset("^q14_\\d+_m\\d+$") |>
-  stringr::str_replace("_m\\d+$", "") |>
-  unique()
-
-q14_long_all <- purrr::map_dfr(q14_bases, \(b) extract_multi(df, b, multi_context))
-
-if (nrow(q14_long_all) > 0) {
-  q14_long_all <- q14_long_all |>
-    dplyr::left_join(answer_labels |> dplyr::rename(choice_label = value), by = c("base" = "base", "code" = "code"))
-
-  readr::write_csv(q14_long_all, file.path(out_dir, "data_clean", "q14_reasons_long.csv"))
-
-  q14_reasons_summary <- q14_long_all |>
-    dplyr::filter(!is.na(choice_label)) |>
-    dplyr::group_by(base, choice_label) |>
-    dplyr::summarise(
-      n_mentions = dplyr::n(),
-      weighted_mentions = sum(.weight, na.rm = TRUE),
-      n_respondents = dplyr::n_distinct(respondent_id),
-      .groups = "drop"
-    ) |>
-    dplyr::arrange(base, dplyr::desc(weighted_mentions))
-
-  write_table(q14_reasons_summary, "q14_reasons_summary")
-}
-
-# =============================================================================
-# 13. Analyse textuelle des trois mots Q3
-# =============================================================================
-
-q3_vars <- names(df) |> stringr::str_subset("^q3_a\\d+$")
-
-q3_long <- df |>
-  dplyr::select(dplyr::all_of(c(context_vars, q3_vars))) |>
-  tidyr::pivot_longer(
-    cols = dplyr::all_of(q3_vars),
-    names_to = "slot",
-    values_to = "mention"
+organized_by_discipline_detail_ci <- tryCatch({
+  survey::svyby(
+    ~exposure_organized,
+    ~discipline_detail,
+    design,
+    survey::svymean,
+    vartype = c("se", "ci"),
+    na.rm = TRUE
   ) |>
-  dplyr::mutate(
-    slot_number = readr::parse_number(slot),
-    mention = fix_text(mention),
-    mention_norm = clean_mention(mention),
-    slot_weight = dplyr::case_when(
-      slot_number == 1 ~ 1.00,
-      slot_number == 2 ~ 0.80,
-      slot_number == 3 ~ 0.60,
-      TRUE ~ 1.00
-    ),
-    text_weight = .weight * slot_weight
-  ) |>
-  dplyr::filter(!is.na(mention_norm), mention_norm != "")
+    as_tibble() |>
+    janitor::clean_names() |>
+    dplyr::rename(pct_organized_w = exposure_organized) |>
+    dplyr::arrange(dplyr::desc(pct_organized_w))
+}, error = function(e) {
+  warning("IC par discipline détaillée non générés : ", conditionMessage(e))
+  tibble::tibble()
+})
+write_table(organized_by_discipline_detail_ci, "organized_exposure_by_discipline_detail_ci")
 
-readr::write_csv(q3_long, file.path(out_dir, "text_analysis", "q3_three_words_long.csv"))
+# -----------------------------------------------------------------------------
+# 10. Descriptifs Q5 et scores par discipline détaillée
+# -----------------------------------------------------------------------------
 
-q3_raw_mentions <- q3_long |>
-  dplyr::group_by(mention_norm) |>
-  dplyr::summarise(
-    examples = paste(utils::head(unique(mention), 3), collapse = " | "),
-    n_mentions = dplyr::n(),
-    weighted_mentions = sum(text_weight, na.rm = TRUE),
-    n_respondents = dplyr::n_distinct(respondent_id),
-    .groups = "drop"
-  ) |>
-  dplyr::arrange(dplyr::desc(weighted_mentions))
-
-write_table(q3_raw_mentions, "q3_raw_mentions", subdir = "text_analysis")
-
-# Dictionnaire conceptuel bilingue, volontairement extensible.
-concept_dictionary <- tibble::tribble(
-  ~concept, ~pattern,
-  "Accès / accessibilité", "\\b(acces|accessible|accessibilite|ouvert|open|availability|available|disponible|disponibilite)\\b",
-  "Partage / échange", "\\b(partage|partager|shared?|sharing|echange|echanges|mutualisation|diffusion commune|share)\\b",
-  "Publications / libre accès", "\\b(publication|publications|article|articles|revue|journal|open access|libre acces|oa|preprint|preprints|archive ouverte|hal)\\b",
-  "Gratuité / coûts", "\\b(gratuit|gratuite|gratuitement|free|cost|cout|couts|apc|payant|payer|frais)\\b",
-  "Données ouvertes / FAIR", "\\b(donnee|donnees|data|dataset|datasets|fair|entrepot|repository|repositories|zenodo|recherche data|dmp|pgd)\\b",
-  "Transparence / traçabilité", "\\b(transparence|transparent|trace|tracabilite|tracable|clarte|visibility|visible|visibilite)\\b",
-  "Collaboration / coopération", "\\b(collaboration|collaboratif|cooperation|cooperatif|collectif|collective|network|reseau|communaute|community)\\b",
-  "Reproductibilité / réutilisation", "\\b(reproductibilite|reproductible|replicable|replication|reutilisation|reuse|reusable|reutilisable|verification)\\b",
-  "Intégrité / éthique", "\\b(integrite|ethique|ethic|ethical|honnetete|fiabilite|fiable|rigueur|qualite|trust|confiance)\\b",
-  "Code / logiciels ouverts", "\\b(code|codes|logiciel|logiciels|software|script|scripts|github|gitlab|open source|opensource|libre)\\b",
-  "Science citoyenne / société", "\\b(citoyen|citoyenne|citizens?|societe|societal|public|humanite|humanity|democratisation|democratique|inclusive|inclusion)\\b",
-  "Communication / vulgarisation", "\\b(communication|communiquer|vulgarisation|dissemination|diffuser|diffusion|mediation|visibilite|outreach)\\b",
-  "Liberté / autonomie", "\\b(liberte|libre|freedom|autonomie|independance|independent)\\b",
-  "Connaissance comme bien commun", "\\b(connaissance|knowledge|savoir|science pour tous|bien commun|commons|commun)\\b",
-  "Innovation / progrès", "\\b(innovation|progres|amelioration|improvement|advance|advancement|developpement|development)\\b",
-  "Ouverture / esprit ouvert", "\\b(ouverture|openess|openness|ouvert|ouverte|ouvrir|open)\\b"
-) |>
-  dplyr::mutate(pattern = stringr::regex(pattern, ignore_case = TRUE))
-
-concept_hits <- tidyr::crossing(
-  q3_long |>
-    dplyr::select(
-      respondent_id, .weight, text_weight, exposure3, exposure2, training_intensity,
-      year, year_code, discipline_broad, institution, language_group,
-      slot_number, mention, mention_norm
-    ),
-  concept_dictionary
-) |>
-  dplyr::filter(stringr::str_detect(mention_norm, pattern)) |>
-  dplyr::distinct(respondent_id, slot_number, mention_norm, concept, .keep_all = TRUE)
-
-concept_presence <- concept_hits |>
-  dplyr::distinct(
-    respondent_id, concept, .weight, exposure3, exposure2, training_intensity,
-    year, year_code, discipline_broad, institution, language_group
-  )
-
-concept_overall <- concept_presence |>
-  dplyr::group_by(concept) |>
-  dplyr::summarise(
-    n_respondents = dplyr::n_distinct(respondent_id),
-    weighted_respondents = sum(.weight, na.rm = TRUE),
-    .groups = "drop"
-  ) |>
-  dplyr::mutate(
-    pct_w = weighted_respondents / sum(df$.weight, na.rm = TRUE),
-    pct_w_label = safe_pct(pct_w)
-  ) |>
-  dplyr::arrange(dplyr::desc(pct_w))
-
-write_table(concept_overall, "q3_concepts_overall", subdir = "text_analysis")
-
-concept_by_group <- function(group_var, filename) {
-  respondent_universe <- df |>
-    dplyr::filter(!is.na(.data[[group_var]]), !is.na(.weight)) |>
-    dplyr::group_by(group = .data[[group_var]]) |>
-    dplyr::summarise(total_weight = sum(.weight, na.rm = TRUE), .groups = "drop")
-
-  out <- concept_presence |>
-    dplyr::filter(!is.na(.data[[group_var]])) |>
-    dplyr::group_by(group = .data[[group_var]], concept) |>
-    dplyr::summarise(
-      n_respondents = dplyr::n_distinct(respondent_id),
-      weighted_respondents = sum(.weight, na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    dplyr::left_join(respondent_universe, by = "group") |>
-    dplyr::mutate(pct_w = weighted_respondents / total_weight) |>
-    dplyr::arrange(group, dplyr::desc(pct_w))
-
-  write_table(out, filename, subdir = "text_analysis")
-  out
-}
-
-concept_by_exposure <- concept_by_group("exposure2", "q3_concepts_by_exposure2")
-concept_by_year <- concept_by_group("year", "q3_concepts_by_year")
-concept_by_disc <- concept_by_group("discipline_broad", "q3_concepts_by_discipline")
-concept_by_lang <- concept_by_group("language_group", "q3_concepts_by_language")
-
-plot_ranked_bar(concept_overall, "23_q3_concepts_overall.png", "À quoi fait penser la science ouverte ?", "Concepts repérés dans les trois mots cités par les doctorants. Un répondant peut contribuer à plusieurs concepts.", fill = osyr_palette["navy"], width = 12, height = 8)
-
-# Concepts distinctifs exposés vs non exposés : différence en points.
-concept_diff_exposure <- concept_by_exposure |>
-  dplyr::filter(!is.na(group)) |>
-  dplyr::select(group, concept, pct_w, n_respondents) |>
-  tidyr::pivot_wider(names_from = group, values_from = c(pct_w, n_respondents), names_sep = "__") |>
-  janitor::clean_names() |>
-  dplyr::mutate(diff_pp = 100 * (pct_w_dispositif_organise - pct_w_aucun_dispositif)) |>
-  dplyr::arrange(dplyr::desc(abs(diff_pp)))
-
-write_table(concept_diff_exposure, "q3_concepts_diff_exposure2", subdir = "text_analysis")
-plot_diff(concept_diff_exposure |> dplyr::rename(item_label = concept), "24_q3_concepts_diff_exposition.png", "Représentations plus fréquentes chez les exposés ou non exposés", "Différence pondérée de présence des concepts dans les trois mots.", top_n = 15)
-
-# Analyse par langue du questionnaire.
-concept_diff_language <- concept_by_lang |>
-  dplyr::select(group, concept, pct_w, n_respondents) |>
-  tidyr::pivot_wider(names_from = group, values_from = c(pct_w, n_respondents), names_sep = "__") |>
-  janitor::clean_names() |>
-  dplyr::mutate(diff_pp = 100 * (pct_w_questionnaire_en_anglais - pct_w_questionnaire_en_francais)) |>
-  dplyr::arrange(dplyr::desc(abs(diff_pp)))
-
-write_table(concept_diff_language, "q3_concepts_diff_language", subdir = "text_analysis")
-plot_diff(concept_diff_language |> dplyr::rename(item_label = concept), "25_q3_concepts_diff_langue.png", "Science ouverte : ce que la langue du questionnaire fait varier", "Différence pondérée de présence des concepts : anglais moins français.", top_n = 15)
-
-# Cooccurrences entre concepts, au niveau répondant.
-concept_pairs <- concept_presence |>
-  dplyr::select(respondent_id, concept, .weight) |>
-  dplyr::distinct() |>
-  dplyr::inner_join(
-    concept_presence |> dplyr::select(respondent_id, concept2 = concept) |> dplyr::distinct(),
-    by = "respondent_id"
-  ) |>
-  dplyr::filter(concept < concept2) |>
-  dplyr::group_by(concept, concept2) |>
-  dplyr::summarise(
-    n_respondents = dplyr::n_distinct(respondent_id),
-    weighted_respondents = sum(.weight, na.rm = TRUE),
-    .groups = "drop"
-  ) |>
-  dplyr::mutate(pct_w = weighted_respondents / sum(df$.weight, na.rm = TRUE)) |>
-  dplyr::arrange(dplyr::desc(weighted_respondents))
-
-write_table(concept_pairs, "q3_concept_cooccurrences", subdir = "text_analysis")
-
-# Réseau de cooccurrence.
-network_edges <- concept_pairs |>
-  dplyr::filter(n_respondents >= 10) |>
-  dplyr::slice_max(weighted_respondents, n = 45) |>
-  dplyr::rename(from = concept, to = concept2, weight = weighted_respondents)
-
-network_nodes <- concept_overall |>
-  dplyr::filter(concept %in% unique(c(network_edges$from, network_edges$to))) |>
-  dplyr::transmute(name = concept, pct_w = pct_w, n = n_respondents)
-
-if (nrow(network_edges) > 0 && nrow(network_nodes) > 1) {
-  g <- igraph::graph_from_data_frame(network_edges, vertices = network_nodes, directed = FALSE)
-  igraph::V(g)$community <- igraph::cluster_louvain(g, weights = igraph::E(g)$weight)$membership
-
-  p_network <- ggraph::ggraph(g, layout = "fr") +
-    ggraph::geom_edge_link(ggplot2::aes(width = weight), alpha = 0.28, color = "#667085") +
-    ggraph::geom_node_point(ggplot2::aes(size = pct_w, fill = factor(community)), shape = 21, color = "white", stroke = 0.8) +
-    ggraph::geom_node_text(ggplot2::aes(label = name), repel = TRUE, size = 3.4, color = osyr_palette["navy"], family = "sans") +
-    ggplot2::scale_edge_width(range = c(0.3, 2.2), guide = "none") +
-    ggplot2::scale_size(range = c(4, 14), guide = "none") +
-    ggplot2::scale_fill_brewer(palette = "Set2", guide = "none") +
-    ggplot2::labs(
-      title = "Réseau de cooccurrence des représentations de la science ouverte",
-      subtitle = "Deux concepts sont reliés lorsqu'ils apparaissent dans les trois mots d'un même répondant.",
-      caption = "Seules les cooccurrences les plus fréquentes sont affichées."
-    ) +
-    theme_osyr() +
-    ggplot2::theme(axis.text = ggplot2::element_blank(), axis.title = ggplot2::element_blank(), panel.grid = ggplot2::element_blank())
-
-  save_plot(p_network, "26_q3_reseau_cooccurrence_concepts.png", width = 13, height = 9)
-}
-
-# Tokens libres : complément non dictionnaire.
-stop_fr <- stopwords::stopwords("fr")
-stop_en <- stopwords::stopwords("en")
-custom_stop <- c(stop_fr, stop_en, "science", "ouverte", "open", "research", "recherche", "scientifique", "scientific") |>
-  stringi::stri_trans_general("Latin-ASCII") |>
-  unique()
-
-token_freq <- q3_long |>
-  dplyr::select(respondent_id, text_weight, exposure2, year, discipline_broad, language_group, mention_norm) |>
-  tidytext::unnest_tokens(token, mention_norm) |>
-  dplyr::filter(!token %in% custom_stop, stringr::str_length(token) > 2, !stringr::str_detect(token, "^\\d+$")) |>
-  dplyr::group_by(token) |>
+q5_by_discipline_detail <- q5_long |>
+  dplyr::filter(!is.na(discipline_detail)) |>
+  dplyr::group_by(discipline_detail, item, item_label, item_family) |>
   dplyr::summarise(
     n = dplyr::n(),
-    weighted_n = sum(text_weight, na.rm = TRUE),
-    n_respondents = dplyr::n_distinct(respondent_id),
-    .groups = "drop"
-  ) |>
-  dplyr::arrange(dplyr::desc(weighted_n))
-
-write_table(token_freq, "q3_token_frequency", subdir = "text_analysis")
-
-# Diversité lexicale par groupe.
-lexical_diversity <- q3_long |>
-  dplyr::select(respondent_id, .weight, exposure2, year, discipline_broad, language_group, mention_norm) |>
-  tidytext::unnest_tokens(token, mention_norm) |>
-  dplyr::filter(!token %in% custom_stop, stringr::str_length(token) > 2, !stringr::str_detect(token, "^\\d+$")) |>
-  dplyr::group_by(exposure2) |>
-  dplyr::summarise(
-    n_tokens = dplyr::n(),
-    n_types = dplyr::n_distinct(token),
-    type_token_ratio = n_types / n_tokens,
+    pct_known_w = w_prop(known_well, .weight),
+    pct_used_w = w_prop(used, .weight),
+    gap_pp = 100 * (pct_known_w - pct_used_w),
     .groups = "drop"
   )
+write_table(q5_by_discipline_detail, "q5_by_discipline_detail")
 
-write_table(lexical_diversity, "q3_lexical_diversity_by_exposure", subdir = "text_analysis")
+score_vars <- c(
+  "score_q4_practices_research", "score_q5_known_well", "score_q5_used",
+  "score_q13_open_intentions", "score_q13_dont_know",
+  "score_q12_incitation", "score_q12_frein", "score_q15_agreement"
+)
+score_vars <- existing_vars(score_vars, df)
 
-# =============================================================================
-# 14. Clustering exploratoire des profils
-# =============================================================================
+score_means_by_discipline_detail <- df |>
+  dplyr::select(discipline_detail, exposure2, .weight, dplyr::all_of(score_vars)) |>
+  tidyr::pivot_longer(cols = dplyr::all_of(score_vars), names_to = "score", values_to = "value") |>
+  dplyr::filter(!is.na(discipline_detail), !is.na(value)) |>
+  dplyr::group_by(discipline_detail, exposure2, score) |>
+  dplyr::summarise(
+    n = dplyr::n(),
+    mean_w = w_mean(value, .weight),
+    .groups = "drop"
+  )
+write_table(score_means_by_discipline_detail, "score_means_by_discipline_detail")
 
-cluster_data <- scores |>
-  dplyr::select(respondent_id, .weight, exposure3, exposure2, year, discipline_broad, language_group, dplyr::all_of(score_vars)) |>
-  tidyr::drop_na(dplyr::all_of(score_vars))
+# -----------------------------------------------------------------------------
+# 11. Belles visualisations avec toutes les disciplines
+# -----------------------------------------------------------------------------
 
-if (nrow(cluster_data) >= 100) {
-  set.seed(20260619)
-  mat <- cluster_data |> dplyr::select(dplyr::all_of(score_vars)) |> scale()
-  km <- stats::kmeans(mat, centers = 4, nstart = 50)
+# 11.1 Distribution détaillée des disciplines.
+p_disc_detail <- sample_discipline_detail |>
+  dplyr::mutate(category = forcats::fct_reorder(stringr::str_wrap(as.character(category), 45), pct_w)) |>
+  ggplot2::ggplot(ggplot2::aes(x = pct_w, y = category)) +
+  ggplot2::geom_col(fill = osyr_palette["navy"], width = 0.68) +
+  ggplot2::geom_text(
+    ggplot2::aes(label = pct_w_label),
+    hjust = -0.12,
+    size = 3.3,
+    color = osyr_palette["navy"]
+  ) +
+  ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, min(1, max(sample_discipline_detail$pct_w, na.rm = TRUE) * 1.18))) +
+  ggplot2::labs(
+    title = "Toutes les disciplines détaillées des répondants",
+    subtitle = "Répartition pondérée, sans agrégation en 4 grands domaines.",
+    x = "Pourcentage pondéré",
+    y = NULL,
+    caption = "Source : enquête OSYR, pondération Poids."
+  ) +
+  theme_osyr(base_size = 11)
+save_plot(p_disc_detail, "04a_distribution_discipline_detail.png", width = 12, height = 8.5)
 
-  clusters <- cluster_data |>
-    dplyr::mutate(cluster = paste0("Profil ", km$cluster))
+# 11.2 Exposition par disciplines détaillées.
+p_exposure_detail <- cross_exposure_by_discipline_detail |>
+  dplyr::filter(col_category != "Indéterminé") |>
+  dplyr::group_by(row_category) |>
+  dplyr::mutate(order_val = pct_row[col_category == "Dispositif organisé"][1]) |>
+  dplyr::ungroup() |>
+  dplyr::mutate(row_category = forcats::fct_reorder(stringr::str_wrap(as.character(row_category), 45), order_val)) |>
+  ggplot2::ggplot(ggplot2::aes(x = pct_row, y = row_category, fill = col_category)) +
+  ggplot2::geom_col(width = 0.72, color = "white", linewidth = 0.35) +
+  ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1), expand = c(0, 0)) +
+  ggplot2::scale_fill_manual(values = exposure_colors, drop = TRUE) +
+  ggplot2::labs(
+    title = "Exposition aux dispositifs par discipline détaillée",
+    subtitle = "Répartition pondérée dans chaque discipline, sans regroupement en 4 domaines.",
+    x = "Pourcentage pondéré dans la discipline",
+    y = NULL
+  ) +
+  theme_osyr(base_size = 10.8)
+save_plot(p_exposure_detail, "04b_exposition_par_discipline_detail.png", width = 13.5, height = 9)
 
-  cluster_profiles <- clusters |>
-    dplyr::group_by(cluster) |>
+# 11.3 Exposition organisée avec IC par disciplines détaillées.
+if (nrow(organized_by_discipline_detail_ci) > 0) {
+  ci_cols <- names(organized_by_discipline_detail_ci)
+  lower_col <- ci_cols[stringr::str_detect(ci_cols, "ci_l|ci_low|lower")]
+  upper_col <- ci_cols[stringr::str_detect(ci_cols, "ci_u|ci_high|upper")]
+
+  if (length(lower_col) > 0 && length(upper_col) > 0) {
+    p_ci <- organized_by_discipline_detail_ci |>
+      dplyr::mutate(discipline_detail = forcats::fct_reorder(stringr::str_wrap(as.character(discipline_detail), 45), pct_organized_w)) |>
+      ggplot2::ggplot(ggplot2::aes(x = pct_organized_w, y = discipline_detail)) +
+      ggplot2::geom_errorbarh(
+        ggplot2::aes(xmin = .data[[lower_col[1]]], xmax = .data[[upper_col[1]]]),
+        height = 0.18,
+        color = "#98A2B3"
+      ) +
+      ggplot2::geom_point(size = 2.8, color = osyr_palette["teal"]) +
+      ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+      ggplot2::labs(
+        title = "Part exposée à un dispositif organisé par discipline détaillée",
+        subtitle = "Estimations pondérées avec intervalles de confiance.",
+        x = "Part pondérée exposée",
+        y = NULL,
+        caption = "Les IC peuvent être larges pour les disciplines à faibles effectifs."
+      ) +
+      theme_osyr(base_size = 10.8)
+    save_plot(p_ci, "04c_exposition_organisee_par_discipline_detail_ci.png", width = 13, height = 8.5)
+  }
+}
+
+# 11.4 Heatmap Q5 connaissance par disciplines détaillées.
+p_q5_known_heat <- q5_by_discipline_detail |>
+  dplyr::mutate(
+    discipline_detail = stringr::str_wrap(as.character(discipline_detail), 32),
+    item_label = stringr::str_wrap(item_label, 38)
+  ) |>
+  ggplot2::ggplot(ggplot2::aes(x = item_label, y = discipline_detail, fill = pct_known_w)) +
+  ggplot2::geom_tile(color = "white", linewidth = 0.25) +
+  ggplot2::scale_fill_gradient(low = "#F2F4F7", high = osyr_palette["teal"], labels = scales::percent_format(accuracy = 1), na.value = "grey90") +
+  ggplot2::labs(
+    title = "Connaissance des notions de science ouverte par discipline détaillée",
+    subtitle = "Part pondérée déclarant connaître bien chaque notion.",
+    x = NULL,
+    y = NULL,
+    fill = "Connaissance"
+  ) +
+  theme_osyr(base_size = 9.5) +
+  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 35, hjust = 1), legend.position = "right")
+save_plot(p_q5_known_heat, "14b_heatmap_q5_connaissance_par_discipline_detail.png", width = 15, height = 9)
+
+# 11.5 Heatmap Q5 usage par disciplines détaillées.
+p_q5_used_heat <- q5_by_discipline_detail |>
+  dplyr::mutate(
+    discipline_detail = stringr::str_wrap(as.character(discipline_detail), 32),
+    item_label = stringr::str_wrap(item_label, 38)
+  ) |>
+  ggplot2::ggplot(ggplot2::aes(x = item_label, y = discipline_detail, fill = pct_used_w)) +
+  ggplot2::geom_tile(color = "white", linewidth = 0.25) +
+  ggplot2::scale_fill_gradient(low = "#F2F4F7", high = osyr_palette["blue"], labels = scales::percent_format(accuracy = 1), na.value = "grey90") +
+  ggplot2::labs(
+    title = "Usage des outils de science ouverte par discipline détaillée",
+    subtitle = "Part pondérée déclarant avoir déjà utilisé chaque outil ou notion.",
+    x = NULL,
+    y = NULL,
+    fill = "Usage"
+  ) +
+  theme_osyr(base_size = 9.5) +
+  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 35, hjust = 1), legend.position = "right")
+save_plot(p_q5_used_heat, "15b_heatmap_q5_usage_par_discipline_detail.png", width = 15, height = 9)
+
+# 11.6 Scores par discipline détaillée et exposition.
+# Version v14 : correction de la heatmap vide et ajout de sorties plus lisibles.
+if (nrow(score_means_by_discipline_detail) > 0) {
+  score_labels <- c(
+    score_q4_practices_research = "Pratiques Q4",
+    score_q5_known_well = "Connaissance Q5",
+    score_q5_used = "Usage Q5",
+    score_q13_open_intentions = "Intentions Q13",
+    score_q13_dont_know = "NSP Q13",
+    score_q12_incitation = "Incitation Q12",
+    score_q12_frein = "Frein Q12",
+    score_q15_agreement = "Accord Q15"
+  )
+
+  score_order <- c(
+    "Connaissance Q5", "Usage Q5", "Pratiques Q4", "Intentions Q13",
+    "Accord Q15", "Incitation Q12", "Frein Q12", "NSP Q13"
+  )
+
+  score_plot_data <- score_means_by_discipline_detail |>
+    dplyr::filter(!is.na(exposure2)) |>
+    dplyr::mutate(
+      exposure2_clean = dplyr::case_when(
+        stringr::str_detect(clean_ascii(exposure2), "aucun") ~ "Aucun dispositif",
+        stringr::str_detect(clean_ascii(exposure2), "organise|organis") ~ "Dispositif organisé",
+        TRUE ~ as.character(exposure2)
+      ),
+      score_label = dplyr::recode(score, !!!score_labels, .default = score)
+    )
+
+  # Correction v14 : éviter pivot_wider + janitor::clean_names(), qui pouvait
+  # produire des colonnes inattendues et donc une heatmap vide. On fait deux
+  # tables et une jointure explicite.
+  score_none <- score_plot_data |>
+    dplyr::filter(exposure2_clean == "Aucun dispositif") |>
+    dplyr::select(discipline_detail, score, score_label, mean_none = mean_w, n_none = n)
+
+  score_org <- score_plot_data |>
+    dplyr::filter(exposure2_clean == "Dispositif organisé") |>
+    dplyr::select(discipline_detail, score, score_label, mean_organized = mean_w, n_organized = n)
+
+  score_gap_detail <- dplyr::full_join(
+    score_none,
+    score_org,
+    by = c("discipline_detail", "score", "score_label")
+  ) |>
+    dplyr::mutate(
+      diff_organized_vs_none_pp = 100 * (mean_organized - mean_none),
+      abs_diff_pp = abs(diff_organized_vs_none_pp)
+    ) |>
+    dplyr::arrange(score_label, dplyr::desc(abs_diff_pp))
+
+  write_table(score_gap_detail, "score_gap_by_discipline_detail_exposure")
+
+  score_gap_plot <- score_gap_detail |>
+    dplyr::filter(!is.na(diff_organized_vs_none_pp)) |>
+    dplyr::mutate(
+      discipline_detail = stringr::str_wrap(as.character(discipline_detail), 32),
+      score_label = factor(score_label, levels = score_order)
+    ) |>
+    dplyr::filter(!is.na(score_label))
+
+  if (nrow(score_gap_plot) > 0) {
+    p_scores_gap <- score_gap_plot |>
+      ggplot2::ggplot(ggplot2::aes(x = discipline_detail, y = score_label, fill = diff_organized_vs_none_pp)) +
+      ggplot2::geom_tile(color = "white", linewidth = 0.35) +
+      ggplot2::geom_text(
+        ggplot2::aes(label = paste0(round(diff_organized_vs_none_pp), " pts")),
+        size = 2.7,
+        color = "#17324D"
+      ) +
+      ggplot2::scale_fill_gradient2(
+        low = unname(osyr_palette["coral"]),
+        mid = "#F2F4F7",
+        high = unname(osyr_palette["teal"]),
+        midpoint = 0,
+        labels = function(x) paste0(x, " pts"),
+        na.value = "grey90"
+      ) +
+      ggplot2::labs(
+        title = "Écarts exposés / non exposés par discipline détaillée",
+        subtitle = "Différence de score moyen pondéré : dispositif organisé moins aucun dispositif.",
+        x = NULL,
+        y = NULL,
+        fill = "Écart",
+        caption = "Lecture descriptive : les écarts ne sont pas interprétés causalement."
+      ) +
+      theme_osyr(base_size = 9.8) +
+      ggplot2::theme(
+        axis.text.x = ggplot2::element_text(angle = 35, hjust = 1),
+        legend.position = "right"
+      )
+
+    save_plot(p_scores_gap, "16b_scores_ecarts_par_discipline_detail_exposition.png", width = 15.5, height = 7.8)
+    save_plot(p_scores_gap, "16b_scores_par_discipline_detail_exposition.png", width = 15.5, height = 7.8)
+  } else {
+    warning("La heatmap des écarts de scores est vide : vérifier score_means_by_discipline_detail.csv.")
+  }
+
+  # Figure compacte centrée Q5.
+  q5_plot_data <- score_plot_data |>
+    dplyr::filter(score %in% c("score_q5_known_well", "score_q5_used")) |>
+    dplyr::mutate(
+      discipline_detail = forcats::fct_reorder(stringr::str_wrap(as.character(discipline_detail), 34), mean_w, .fun = max),
+      score_label = dplyr::recode(score, !!!score_labels, .default = score),
+      exposure2_clean = factor(exposure2_clean, levels = c("Aucun dispositif", "Dispositif organisé"))
+    )
+
+  if (nrow(q5_plot_data) > 0) {
+    p_scores_q5 <- q5_plot_data |>
+      ggplot2::ggplot(ggplot2::aes(x = mean_w, y = discipline_detail, fill = exposure2_clean)) +
+      ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.72), width = 0.64) +
+      ggplot2::facet_wrap(~ score_label, ncol = 2) +
+      ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+      ggplot2::scale_fill_manual(
+        values = c(
+          "Aucun dispositif" = unname(osyr_palette["coral"]),
+          "Dispositif organisé" = unname(osyr_palette["teal"])
+        ),
+        drop = TRUE
+      ) +
+      ggplot2::labs(
+        title = "Connaissance et usage Q5 par discipline détaillée",
+        subtitle = "Comparaison entre doctorants sans dispositif et doctorants exposés à un dispositif organisé.",
+        x = "Moyenne pondérée",
+        y = NULL
+      ) +
+      theme_osyr(base_size = 10.2)
+
+    save_plot(p_scores_q5, "16c_scores_q5_par_discipline_detail_exposition.png", width = 13.5, height = 8.7)
+  }
+
+  # Nouveau : lollipop des plus grands écarts, plus lisible qu'une heatmap complète.
+  top_score_gaps <- score_gap_detail |>
+    dplyr::filter(!is.na(diff_organized_vs_none_pp)) |>
+    dplyr::mutate(
+      label = paste0(as.character(discipline_detail), " — ", score_label),
+      label = stringr::str_wrap(label, 56)
+    ) |>
+    dplyr::slice_max(order_by = abs_diff_pp, n = 22, with_ties = FALSE) |>
+    dplyr::mutate(label = forcats::fct_reorder(label, diff_organized_vs_none_pp))
+
+  if (nrow(top_score_gaps) > 0) {
+    p_top_gaps <- top_score_gaps |>
+      ggplot2::ggplot(ggplot2::aes(x = diff_organized_vs_none_pp, y = label)) +
+      ggplot2::geom_vline(xintercept = 0, color = "#344054", linewidth = 0.45) +
+      ggplot2::geom_segment(
+        ggplot2::aes(x = 0, xend = diff_organized_vs_none_pp, yend = label),
+        color = "#98A2B3",
+        linewidth = 0.7
+      ) +
+      ggplot2::geom_point(
+        ggplot2::aes(color = diff_organized_vs_none_pp > 0),
+        size = 3
+      ) +
+      ggplot2::scale_color_manual(
+        values = c("TRUE" = unname(osyr_palette["teal"]), "FALSE" = unname(osyr_palette["coral"])),
+        labels = c("FALSE" = "Plus faible chez les exposés", "TRUE" = "Plus élevé chez les exposés")
+      ) +
+      ggplot2::scale_x_continuous(labels = function(x) paste0(x, " pts")) +
+      ggplot2::labs(
+        title = "Plus grands écarts exposés / non exposés",
+        subtitle = "Top des différences absolues par discipline détaillée et indicateur.",
+        x = "Écart en points de pourcentage",
+        y = NULL,
+        color = NULL
+      ) +
+      theme_osyr(base_size = 10.5)
+
+    save_plot(p_top_gaps, "16d_top_ecarts_scores_discipline_detail.png", width = 13.5, height = 8.5)
+  }
+}
+
+# -----------------------------------------------------------------------------
+# 11bis. Visualisations complémentaires Q8 et Q5
+# -----------------------------------------------------------------------------
+
+# 11bis-1. Heatmap des dispositifs Q8 par discipline détaillée.
+if (exists("q8_devices_long") && nrow(q8_devices_long) > 0) {
+  discipline_totals <- df |>
+    dplyr::filter(!is.na(discipline_detail)) |>
+    dplyr::group_by(discipline_detail) |>
+    dplyr::summarise(total_weight_discipline = sum(.weight, na.rm = TRUE), .groups = "drop")
+
+  q8_device_by_discipline <- q8_devices_long |>
+    dplyr::filter(!is.na(discipline_detail)) |>
+    dplyr::group_by(discipline_detail, device_code, device_label, device_type) |>
     dplyr::summarise(
-      n = dplyr::n(),
+      n = dplyr::n_distinct(respondent_id),
       weighted_n = sum(.weight, na.rm = TRUE),
-      dplyr::across(dplyr::all_of(score_vars), ~ w_mean(.x, .weight), .names = "mean_{.col}"),
       .groups = "drop"
     ) |>
-    tidyr::pivot_longer(dplyr::starts_with("mean_"), names_to = "score", values_to = "mean_w") |>
-    dplyr::mutate(score = stringr::str_remove(score, "^mean_")) |>
-    dplyr::left_join(score_labels, by = "score")
+    dplyr::left_join(discipline_totals, by = "discipline_detail") |>
+    dplyr::mutate(
+      pct_respondents_w = weighted_n / total_weight_discipline,
+      pct_label = safe_pct(pct_respondents_w, accuracy = 1)
+    ) |>
+    dplyr::arrange(discipline_detail, dplyr::desc(pct_respondents_w))
 
-  cluster_composition <- clusters |>
-    dplyr::group_by(cluster, exposure3, year, discipline_broad, language_group) |>
-    dplyr::summarise(n = dplyr::n(), weighted_n = sum(.weight, na.rm = TRUE), .groups = "drop")
+  write_table(q8_device_by_discipline, "q8_device_distribution_detail_by_discipline")
 
-  write_table(cluster_profiles, "cluster_profiles_scores")
-  write_table(cluster_composition, "cluster_composition")
+  q8_device_heat <- q8_device_by_discipline |>
+    dplyr::mutate(
+      discipline_detail = stringr::str_wrap(as.character(discipline_detail), 30),
+      device_label = stringr::str_wrap(as.character(device_label), 38)
+    )
 
-  p_cluster <- cluster_profiles |>
-    dplyr::mutate(score_label = stringr::str_wrap(score_label, 34)) |>
-    ggplot2::ggplot(ggplot2::aes(x = cluster, y = score_label, fill = mean_w)) +
-    ggplot2::geom_tile(color = "white", linewidth = 0.7) +
-    ggplot2::geom_text(ggplot2::aes(label = paste0(round(100 * mean_w, 0), "%")), color = osyr_palette["navy"], size = 3.2) +
-    ggplot2::scale_fill_gradient(low = "#F2F4F7", high = osyr_palette["purple"], labels = scales::percent_format(accuracy = 1)) +
-    ggplot2::labs(
-      title = "Profils exploratoires de doctorants",
-      subtitle = "Clustering k-means sur les scores standardisés. À interpréter comme aide à la typologie, non comme classification définitive.",
-      x = NULL,
-      y = NULL,
-      fill = NULL
-    ) +
-    theme_osyr() +
-    ggplot2::theme(panel.grid = ggplot2::element_blank())
+  if (nrow(q8_device_heat) > 0) {
+    p_q8_device_heat <- q8_device_heat |>
+      ggplot2::ggplot(ggplot2::aes(x = device_label, y = discipline_detail, fill = pct_respondents_w)) +
+      ggplot2::geom_tile(color = "white", linewidth = 0.30) +
+      ggplot2::scale_fill_gradient(
+        low = "#F2F4F7",
+        high = unname(osyr_palette["teal"]),
+        labels = scales::percent_format(accuracy = 1),
+        na.value = "grey90"
+      ) +
+      ggplot2::labs(
+        title = "Dispositifs Q8 détaillés par discipline",
+        subtitle = "Part pondérée des répondants ayant coché chaque modalité dans chaque discipline.",
+        x = NULL,
+        y = NULL,
+        fill = "Part",
+        caption = "Question multiréponse : les pourcentages ne s'additionnent pas nécessairement à 100 %."
+      ) +
+      theme_osyr(base_size = 9.6) +
+      ggplot2::theme(
+        axis.text.x = ggplot2::element_text(angle = 35, hjust = 1),
+        legend.position = "right"
+      )
 
-  save_plot(p_cluster, "27_profils_exploratoires_clusters.png", width = 11, height = 7.2)
+    save_plot(p_q8_device_heat, "02d_heatmap_dispositifs_q8_par_discipline_detail.png", width = 14.5, height = 8.5)
+  }
+
+  # 11bis-2. Focus MOOC / autoformation par discipline.
+  q8_auto_mooc_focus <- q8_device_by_discipline |>
+    dplyr::filter(device_type == "Autoformation / MOOC / autre") |>
+    dplyr::mutate(
+      device_focus = dplyr::case_when(
+        stringr::str_detect(clean_ascii(device_label), "mooc") ~ "MOOC / parcours asynchrone",
+        stringr::str_detect(clean_ascii(device_label), "autoformation|documentation") ~ "Autoformation documentaire",
+        TRUE ~ "Autre autoformation"
+      )
+    ) |>
+    dplyr::group_by(discipline_detail, device_focus) |>
+    dplyr::summarise(
+      pct_respondents_w = sum(pct_respondents_w, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  write_table(q8_auto_mooc_focus, "q8_autoformation_mooc_by_discipline")
+
+  if (nrow(q8_auto_mooc_focus) > 0) {
+    p_q8_auto <- q8_auto_mooc_focus |>
+      dplyr::mutate(
+        discipline_detail = forcats::fct_reorder(stringr::str_wrap(as.character(discipline_detail), 34), pct_respondents_w, .fun = max)
+      ) |>
+      ggplot2::ggplot(ggplot2::aes(x = pct_respondents_w, y = discipline_detail, fill = device_focus)) +
+      ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.74), width = 0.64) +
+      ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+      ggplot2::scale_fill_manual(
+        values = c(
+          "MOOC / parcours asynchrone" = unname(osyr_palette["orange"]),
+          "Autoformation documentaire" = unname(osyr_palette["purple"]),
+          "Autre autoformation" = unname(osyr_palette["grey"])
+        ),
+        drop = TRUE
+      ) +
+      ggplot2::labs(
+        title = "MOOC et autoformation par discipline détaillée",
+        subtitle = "Focus sur les modalités que l'on ne classe pas comme dispositifs organisés.",
+        x = "Part pondérée des répondants",
+        y = NULL
+      ) +
+      theme_osyr(base_size = 10.4)
+
+    save_plot(p_q8_auto, "02e_mooc_autoformation_par_discipline_detail.png", width = 13.5, height = 8)
+  }
 }
 
+# 11bis-3. Gap connaissance-usage par discipline détaillée.
+if (exists("q5_by_discipline_detail") && nrow(q5_by_discipline_detail) > 0) {
+  q5_gap_by_discipline <- q5_by_discipline_detail |>
+    dplyr::group_by(discipline_detail) |>
+    dplyr::summarise(
+      pct_known_w = mean(pct_known_w, na.rm = TRUE),
+      pct_used_w = mean(pct_used_w, na.rm = TRUE),
+      gap_pp = mean(gap_pp, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::arrange(dplyr::desc(gap_pp))
 
-# =============================================================================
-# 15. Légendes interprétatives des figures
-# =============================================================================
+  write_table(q5_gap_by_discipline, "q5_gap_knowledge_usage_by_discipline_detail")
 
-figure_captions <- tibble::tribble(
-  ~figure, ~titre_court, ~legende_interpretative,
-  "00_distribution_annee_these_controle.png", "Année de thèse", "Part pondérée des répondants selon l'année de thèse. La répartition est globalement équilibrée, ce qui rend les comparaisons par niveau d'avancement plus solides.",
-  "01_langue_questionnaire.png", "Langue du questionnaire", "Part pondérée des répondants selon la langue du questionnaire. La modalité anglaise est utilisée comme indicateur prudent d'un profil plus international, sans être assimilée à une nationalité.",
-  "02_exposition_dispositifs.png", "Exposition aux dispositifs", "Répartition pondérée selon l'exposition aux dispositifs de science ouverte. La catégorie dispositif organisé désigne une exposition structurée ; autoformation/autre seulement désigne une exposition non institutionnalisée.",
-  "03_exposition_par_annee_CORRIGE.png", "Exposition par année", "Part pondérée de chaque type d'exposition au sein de chaque année de thèse. Chaque barre représente 100 % des répondants d'une même année.",
-  "04_exposition_par_discipline.png", "Exposition par discipline", "Part pondérée de chaque type d'exposition au sein de chaque grand domaine disciplinaire. Les différences doivent être lues comme des contrastes de structure et non comme un classement.",
-  "05_exposition_par_langue.png", "Exposition par langue", "Comparaison pondérée de l'exposition entre répondants au questionnaire français et anglais. Le questionnaire anglais peut signaler un profil plus international, mais ne mesure pas directement la nationalité.",
-  "06_q5_notions_bien_connues.png", "Notions bien connues", "Part pondérée de doctorants déclarant bien connaître chaque notion ou outil. Il s'agit d'une familiarité déclarée, et non d'une mesure objective de maîtrise.",
-  "06b_q5_ecart_connaissance_usage.png", "Connaissance vers usage", "Chaque segment relie la part déclarant bien connaître une notion à la part déclarant l'avoir déjà utilisée. Plus le segment est long, plus la notion reste connue sans être encore largement pratiquée.",
-  "07_q5_notions_deja_utilisees.png", "Notions déjà utilisées", "Part pondérée de doctorants déclarant avoir déjà utilisé chaque notion ou outil. La comparaison avec la connaissance permet de repérer les objets connus mais peu appropriés.",
-  "08_q13_intentions_oui.png", "Intentions", "Part pondérée de réponses oui à différentes intentions de pratiques ouvertes ou de valorisation. Ces résultats mesurent des intentions déclarées, non des comportements observés.",
-  "09_q15_accord_affirmations.png", "Représentations générales", "Part pondérée de répondants plutôt d'accord ou tout à fait d'accord avec chaque affirmation. Ces items renseignent les représentations générales de la science ouverte.",
-  "10_diff_q5_connaissance_exposition.png", "Connaissance et exposition", "Différence pondérée entre exposés et non exposés. Une valeur positive indique une connaissance plus élevée parmi les exposés ; ces écarts sont descriptifs.",
-  "11_diff_q5_usage_exposition.png", "Usage et exposition", "Différence pondérée d'usage déclaré entre exposés et non exposés. Une valeur positive indique un usage plus fréquent parmi les exposés ; ces écarts sont descriptifs.",
-  "12_diff_q13_intentions_exposition.png", "Intentions et exposition", "Différence pondérée de réponses oui entre exposés et non exposés. Les faibles écarts suggèrent que l'exposition modifie peu les intentions déclarées.",
-  "13_diff_q15_representations_exposition.png", "Représentations et exposition", "Différence pondérée d'accord entre exposés et non exposés. Les faibles écarts indiquent que les représentations générales sont largement partagées.",
-  "14_heatmap_q5_connaissance_par_annee.png", "Connaissance par année", "Heatmap de la familiarité déclarée par année de thèse. Elle permet de repérer les notions qui progressent avec l'avancement dans la thèse.",
-  "15_heatmap_q5_connaissance_par_discipline.png", "Connaissance par discipline", "Heatmap de la familiarité déclarée par grand domaine. Elle montre que les objets pertinents de science ouverte varient fortement selon les disciplines.",
-  "16_scores_difference_exposition.png", "Scores et exposition", "Différence pondérée de scores moyens entre exposés et non exposés. Les écarts les plus forts concernent l'environnement perçu comme incitatif et la connaissance des notions.",
-  "17_heatmap_scores_exposition_annee.png", "Scores par exposition et année", "Heatmap croisant scores, exposition et année de thèse. Lecture horizontale : comparer exposés et non exposés à année donnée.",
-  "18_heatmap_scores_exposition_langue.png", "Scores par exposition et langue", "Heatmap croisant scores, exposition et langue du questionnaire. Elle aide à nuancer le profil des répondants anglophones.",
-  "19_modeles_scores_effet_exposition_highlevel.png", "Modélisation principale", "Chaque point représente la différence ajustée moyenne entre doctorants exposés à un dispositif organisé et doctorants sans dispositif organisé. Les barres indiquent les intervalles de confiance à 95 %.",
-  "19b_modeles_scores_synthese_blocs.png", "Synthèse des effets ajustés", "Classe les effets ajustés selon leur force et leur clarté statistique. Les dispositifs se distinguent surtout par connaissance, usage et environnement incitatif.",
-  "20_prediction_connaissance_exposition_annee.png", "Prédictions par année", "Valeurs ajustées prédites du score de connaissance selon exposition et année. Les contrôles sont fixés à leur modalité la plus fréquente.",
-  "21_prediction_connaissance_exposition_discipline.png", "Prédictions par discipline", "Valeurs ajustées prédites du score de connaissance selon exposition et discipline. À interpréter comme visualisation du modèle, non comme causalité.",
-  "22_prediction_connaissance_exposition_langue.png", "Prédictions par langue", "Valeurs ajustées prédites du score de connaissance selon exposition et langue du questionnaire. À interpréter prudemment.",
-  "23b_modeles_interactions_synthese.png", "Interactions exploratoires", "Principaux termes d'interaction exposition × année, discipline ou langue. Ils indiquent si l'écart exposés/non exposés varie selon certains groupes.",
-  "24_q3_concepts_diff_exposition.png", "Trois mots et exposition", "Différence pondérée de présence des concepts dans les trois mots associés à la science ouverte. Les valeurs positives indiquent des concepts plus fréquents chez les exposés.",
-  "25_q3_concepts_diff_langue.png", "Trois mots et langue", "Différence pondérée de présence des concepts selon la langue du questionnaire. La figure montre des cadrages sémantiques différents de la science ouverte.",
-  "27_profils_exploratoires_clusters.png", "Profils exploratoires", "Profils obtenus par k-means sur scores standardisés. Les cases affichent les niveaux moyens observés ; cette figure est une aide à la typologie, pas une classification définitive."
-)
+  if (nrow(q5_gap_by_discipline) > 0) {
+    p_gap_disc <- q5_gap_by_discipline |>
+      dplyr::mutate(discipline_detail = forcats::fct_reorder(stringr::str_wrap(as.character(discipline_detail), 34), gap_pp)) |>
+      ggplot2::ggplot(ggplot2::aes(x = gap_pp, y = discipline_detail)) +
+      ggplot2::geom_col(fill = unname(osyr_palette["navy"]), width = 0.68) +
+      ggplot2::geom_text(
+        ggplot2::aes(label = paste0(round(gap_pp), " pts")),
+        hjust = -0.12,
+        size = 3.2,
+        color = osyr_palette["navy"]
+      ) +
+      ggplot2::scale_x_continuous(
+        labels = function(x) paste0(x, " pts"),
+        limits = c(0, safe_max_pct(q5_gap_by_discipline$gap_pp / 100, multiplier = 1.20, floor = 0.05, ceiling = 1) * 100)
+      ) +
+      ggplot2::labs(
+        title = "Gap connaissance-usage par discipline détaillée",
+        subtitle = "Écart moyen entre notions bien connues et outils déjà utilisés.",
+        x = "Écart moyen en points de pourcentage",
+        y = NULL
+      ) +
+      theme_osyr(base_size = 10.5)
 
-write_table(figure_captions, "figure_captions")
+    save_plot(p_gap_disc, "17a_gap_connaissance_usage_par_discipline_detail.png", width = 12.5, height = 7.5)
+  }
 
-# =============================================================================
-# 16. Classeur Excel de synthèse
-# =============================================================================
+  # Gap par famille d'objet et discipline.
+  if ("item_family" %in% names(q5_by_discipline_detail)) {
+    q5_gap_family_disc <- q5_by_discipline_detail |>
+      dplyr::group_by(discipline_detail, item_family) |>
+      dplyr::summarise(
+        gap_pp = mean(gap_pp, na.rm = TRUE),
+        pct_known_w = mean(pct_known_w, na.rm = TRUE),
+        pct_used_w = mean(pct_used_w, na.rm = TRUE),
+        .groups = "drop"
+      )
 
-xlsx_path <- file.path(out_dir, "OSYR_V2_final_synthese_analyses.xlsx")
-wb <- openxlsx::createWorkbook()
+    write_table(q5_gap_family_disc, "q5_gap_by_family_and_discipline_detail")
 
-add_sheet <- function(wb, sheet_name, data) {
-  sheet_name <- substr(sheet_name, 1, 31)
-  openxlsx::addWorksheet(wb, sheet_name)
-  openxlsx::writeData(wb, sheet_name, data)
-  openxlsx::freezePane(wb, sheet_name, firstRow = TRUE)
-  openxlsx::addFilter(wb, sheet_name, row = 1, cols = seq_len(ncol(data)))
-  openxlsx::setColWidths(wb, sheet_name, cols = seq_len(ncol(data)), widths = "auto")
+    if (nrow(q5_gap_family_disc) > 0) {
+      p_gap_family <- q5_gap_family_disc |>
+        dplyr::mutate(
+          discipline_detail = stringr::str_wrap(as.character(discipline_detail), 30),
+          item_family = stringr::str_wrap(as.character(item_family), 28)
+        ) |>
+        ggplot2::ggplot(ggplot2::aes(x = item_family, y = discipline_detail, fill = gap_pp)) +
+        ggplot2::geom_tile(color = "white", linewidth = 0.30) +
+        ggplot2::geom_text(ggplot2::aes(label = paste0(round(gap_pp), " pts")), size = 2.5, color = "#17324D") +
+        ggplot2::scale_fill_gradient(
+          low = "#F2F4F7",
+          high = unname(osyr_palette["orange"]),
+          labels = function(x) paste0(x, " pts"),
+          na.value = "grey90"
+        ) +
+        ggplot2::labs(
+          title = "Gap connaissance-usage par famille d'objets",
+          subtitle = "Écart moyen en points par discipline détaillée et famille de notions/outils.",
+          x = NULL,
+          y = NULL,
+          fill = "Gap"
+        ) +
+        theme_osyr(base_size = 9.8) +
+        ggplot2::theme(
+          axis.text.x = ggplot2::element_text(angle = 30, hjust = 1),
+          legend.position = "right"
+        )
+
+      save_plot(p_gap_family, "17b_gap_par_famille_objet_discipline_detail.png", width = 14, height = 8)
+    }
+  }
 }
 
-add_sheet(wb, "quality", quality_overview)
-add_sheet(wb, "year_check", year_check)
-add_sheet(wb, "sample_year", sample_year)
-add_sheet(wb, "sample_language", sample_language)
-add_sheet(wb, "sample_exposure", sample_exposure)
-add_sheet(wb, "exposure_by_year", cross_exposure_year)
-add_sheet(wb, "exposure_by_discipline", cross_exposure_discipline)
-add_sheet(wb, "exposure_by_language", cross_exposure_language)
-add_sheet(wb, "q5_known_overall", q5_known_overall)
-add_sheet(wb, "q5_used_overall", q5_used_overall)
-add_sheet(wb, "q13_intentions", q13_yes_overall)
-add_sheet(wb, "q15_agreement", q15_agree_overall)
-add_sheet(wb, "q5_diff_exposure", q5_known_cmp$diff)
-add_sheet(wb, "score_diff_exposure", score_diff_exposure)
-add_sheet(wb, "score_models", score_models_main)
-add_sheet(wb, "model_exposure_effects", score_exposure_effects)
-add_sheet(wb, "model_effects_summary", score_exposure_effects_summary)
-add_sheet(wb, "q3_concepts", concept_overall)
-add_sheet(wb, "q3_concepts_exposure", concept_by_exposure)
-add_sheet(wb, "q3_concepts_language", concept_by_lang)
-add_sheet(wb, "q3_cooccurrences", concept_pairs)
-add_sheet(wb, "q3_raw_mentions", q3_raw_mentions |> dplyr::slice_head(n = 500))
-add_sheet(wb, "figure_captions", figure_captions)
-if (exists("interaction_terms")) add_sheet(wb, "interaction_terms", interaction_terms)
+# -----------------------------------------------------------------------------
+# 11ter. Correction optionnelle du graphique Q3 si les concepts existent
 
-openxlsx::saveWorkbook(wb, xlsx_path, overwrite = TRUE)
+# -----------------------------------------------------------------------------
+# Ce bloc n'est activé que si le script complémentaire a déjà produit la table
+# q3_concept_framing.csv. Il évite les libellés génériques de type Item 1,
+# Item 2, etc., dans les restitutions.
+q3_concept_path <- file.path("outputs_osyr_v2_complements_30062026", "text_analysis", "q3_concept_framing.csv")
+if (file.exists(q3_concept_path)) {
+  q3_concept_framing <- readr::read_csv(q3_concept_path, show_col_types = FALSE)
 
-# =============================================================================
-# 17. Résumé console
-# =============================================================================
+  if (nrow(q3_concept_framing) > 0 && "concept" %in% names(q3_concept_framing)) {
+    pct_col <- dplyr::case_when(
+      "pct_w" %in% names(q3_concept_framing) ~ "pct_w",
+      "pct" %in% names(q3_concept_framing) ~ "pct",
+      TRUE ~ NA_character_
+    )
 
-message("\nAnalyse OSYR V2 finale terminée.")
-message("Sorties : ", normalizePath(out_dir, mustWork = FALSE))
-message("Classeur Excel : ", normalizePath(xlsx_path, mustWork = FALSE))
-message("Graphique de contrôle de l'année : ", normalizePath(file.path(out_dir, "figures", "00_distribution_annee_these_controle.png"), mustWork = FALSE))
-message("Graphique corrigé exposition × année : ", normalizePath(file.path(out_dir, "figures", "03_exposition_par_annee_CORRIGE.png"), mustWork = FALSE))
-message("Figure principale de modélisation : ", normalizePath(file.path(out_dir, "figures", "19_modeles_scores_effet_exposition_highlevel.png"), mustWork = FALSE))
-message("Légendes interprétatives : ", normalizePath(file.path(out_dir, "tables", "figure_captions.csv"), mustWork = FALSE))
+    if (!is.na(pct_col)) {
+      p_q3_concepts <- q3_concept_framing |>
+        dplyr::mutate(
+          concept_plot = forcats::fct_reorder(stringr::str_wrap(as.character(concept), 42), .data[[pct_col]])
+        ) |>
+        dplyr::arrange(dplyr::desc(.data[[pct_col]])) |>
+        dplyr::slice_head(n = 16) |>
+        ggplot2::ggplot(ggplot2::aes(x = .data[[pct_col]], y = concept_plot)) +
+        ggplot2::geom_col(fill = unname(osyr_palette["navy"]), width = 0.68) +
+        ggplot2::geom_text(
+          ggplot2::aes(label = safe_pct(.data[[pct_col]], accuracy = 1)),
+          hjust = -0.10,
+          size = 3.4,
+          color = osyr_palette["navy"]
+        ) +
+        ggplot2::scale_x_continuous(
+          labels = scales::percent_format(accuracy = 1),
+          limits = c(0, min(1, max(q3_concept_framing[[pct_col]], na.rm = TRUE) * 1.20))
+        ) +
+        ggplot2::labs(
+          title = "À quoi fait penser la science ouverte ?",
+          subtitle = "Concepts repérés dans les trois mots cités par les doctorants.",
+          x = "Pourcentage pondéré",
+          y = NULL,
+          caption = "Un répondant peut contribuer à plusieurs concepts."
+        ) +
+        theme_osyr(base_size = 11)
+
+      save_plot(p_q3_concepts, "23_q3_concepts_overall.png", width = 12.5, height = 8)
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# 12. Sortie de session et message final
+# -----------------------------------------------------------------------------
+
+
+sink(file.path(out_dir, "diagnostics", "sessionInfo_script01_v14.txt"))
+print(sessionInfo())
+sink()
+
+message("\nScript 01 v14 terminé.")
+message("Base enrichie : ", normalizePath(file.path(out_dir, "data_clean", "osyr_v2_corrigee_clean.rds"), mustWork = FALSE))
+message("Figures disciplines détaillées et dispositifs détaillés : ", normalizePath(file.path(out_dir, "figures"), mustWork = FALSE))
