@@ -1,4 +1,4 @@
-# OSYR — Workflow analytique partagé
+# OSYR — Workflow analytique
 
 Version propre : 07/07/2026  
 Objet : package de scripts R pour analyser la base OSYR V2 corrigée, générer les figures, les modèles, le rapport Word et le PowerPoint de restitution.
