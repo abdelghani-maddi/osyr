@@ -1,6 +1,6 @@
 # =============================================================================
 # SCRIPT 05 — PRODUIRE LE RAPPORT FINAL OSYR
-# Version 2026-09-21 v3
+# Version 2026-09-21 v4
 # =============================================================================
 # Étape de production finale.
 #
@@ -8,9 +8,12 @@
 # relance la couche d'analyses finales si elle est disponible, puis génère un
 # rapport Word structuré selon le plan de dépouillement de septembre 2026.
 #
-# Le script utilise uniquement les styles Word standards disponibles dans le
-# document par défaut d'officer : Normal, heading 1, heading 2, heading 3.
-# Cela évite l'erreur liée au style 'Title' absent de certains templates.
+# Corrections de compatibilité :
+# - pas de style Word "Title" ou "Subtitle" ; uniquement Normal, heading 1,
+#   heading 2 et heading 3 ;
+# - insertion des tableaux avec flextable::body_add_flextable(), et non
+#   officer::body_add_flextable(), car cette fonction est exportée par le
+#   package flextable dans les versions utilisées localement.
 # =============================================================================
 
 options(
@@ -45,7 +48,7 @@ ensure_dir(file.path(dirs$report, "figures"))
 
 # La couche finale ajoute des figures et tableaux directement alignés sur le plan
 # de dépouillement. Elle est appelée ici pour éviter un rapport trop pauvre en
-# analyses.
+# analyses. Si elle a déjà été exécutée, elle régénère proprement le catalogue.
 if (file.exists("R/osyr_final_analyses.R")) {
   source("R/osyr_final_analyses.R")
 } else {
@@ -138,9 +141,12 @@ add_doc_title <- function(doc, title, subtitle = NULL) {
 
 add_section_table <- function(doc, data) {
   if (!is.data.frame(data) || nrow(data) == 0) return(doc)
+
   ft <- flextable::flextable(data) |>
     style_flextable_osyr()
-  officer::body_add_flextable(doc, ft)
+
+  # body_add_flextable est exportée par flextable, pas par officer.
+  flextable::body_add_flextable(doc, value = ft)
 }
 
 add_figure_if_exists <- function(doc, path, title, caption = NULL, width = 6.4) {
