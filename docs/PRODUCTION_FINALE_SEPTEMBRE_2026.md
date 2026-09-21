@@ -1,146 +1,67 @@
-# Production finale — septembre 2026
-
-Ce document décrit le passage du workflow d'exploration et de compléments WP2 à une chaîne de production finale pour le rapport publié et la présentation de restitution.
+# Production finale OSYR — septembre 2026
 
 ## Objectif
 
-L'objectif est de stabiliser un ensemble de figures, tableaux et diagnostics directement utilisables dans le rapport final, tout en gardant une traçabilité complète des traitements.
+La phase de production finale ne consiste plus à empiler les sorties exploratoires. Le workflow distingue désormais quatre niveaux : analyses principales, analyses complémentaires, analyses finales alignées sur le plan de dépouillement, puis génération des livrables publiables.
 
-La trame suivie est celle du plan de dépouillement de septembre 2026 :
+Le rapport principal est volontairement plus sélectif que les sorties analytiques. Les figures supplémentaires sont conservées dans une annexe graphique séparée.
 
-1. Parcours de formation
-2. Connaissances
-3. Pratiques
-4. Intentions et attitudes
-5. Perceptions
-6. Profils et analyses transversales
-7. Précautions méthodologiques
+## Ordre du workflow
 
-## Organisation des scripts
+Point d'entrée recommandé : `source("00_lancer_workflow_complet.R")`.
 
-```text
-00_lancer_workflow_complet.R               # point d'entrée
-01_analyse_osyr_base_et_modeles.R          # base analytique, descriptifs, figures principales
-02_generer_rapport_word.R                  # rapport analytique existant
-03_analyses_complementaires_wp2_30062026.R # analyses complémentaires et robustesse
-04_generer_presentation_powerpoint.R       # présentation existante
-05_produire_rapport_final.R                # rapport final structuré
-06_generer_presentation_finale.R           # présentation finale
-99_session_info.R                          # environnement R
-R/osyr_style.R                             # style OSYR, plan final, catalogue de départ
-R/osyr_final_analyses.R                    # analyses et figures supplémentaires pour la production finale
-```
+Le workflow appelle ensuite, selon les options activées : `01_analyse_osyr_base_et_modeles.R`, `03_analyses_complementaires_wp2_30062026.R`, `R/osyr_final_analyses.R`, `05_produire_rapport_final.R` et `06_generer_presentation_finale.R`.
 
-## Style OSYR
+## Couche finale d'analyses
 
-Les couleurs sont centralisées dans `R/osyr_style.R` :
+`R/osyr_final_analyses.R` produit des analyses supplémentaires pour couvrir les sections du plan final : parcours de formation, connaissances, pratiques, intentions et attitudes, perceptions, profils et analyses transversales, précautions méthodologiques.
 
-```r
-brown = "#998A5B"
-green = "#7FB680"
-beige = "#FEFAD4"
-```
+Les nouvelles analyses sont stockées sous `outputs_osyr_rapport_final/tables/`, `outputs_osyr_rapport_final/figures/` et `outputs_osyr_rapport_final/diagnostics/`.
 
-Le fichier ajoute aussi des couleurs secondaires sobres, uniquement pour faciliter les graphiques et les documents : vert foncé, vert pâle, gris, blanc et noir.
+## Rapport principal
 
-## Renforcement analytique
+`05_produire_rapport_final.R` génère `outputs_osyr_rapport_final/rapport_final_osyr.docx`.
 
-La première version du rapport final était trop proche d'un catalogue de figures existantes. La version actuelle ajoute une couche dédiée :
+Le rapport principal ne contient plus le tableau de couverture analytique, le catalogue technique des figures, les messages de type « Points à rédiger » ni les légendes internes du workflow.
 
-```r
-source("R/osyr_final_analyses.R")
-```
+Il contient désormais une page de couverture, un résumé des principaux résultats, une section méthode, les sections du plan de dépouillement, des paragraphes factuels produits à partir des tables, un tableau synthétique par section lorsque les données le permettent, au maximum trois figures principales par section, puis une conclusion et les précautions méthodologiques.
 
-Cette couche produit des figures et tableaux complémentaires directement alignés sur le plan de dépouillement :
+Les formulations générées automatiquement restent descriptives et doivent être relues avant publication.
 
-- exposition aux dispositifs selon l'année de thèse ;
-- types de dispositifs Q8 par année et par discipline ;
-- volume de formation ;
-- évaluation des formations Q11 ;
-- connaissance et usage Q5 item par item ;
-- scores synthétiques selon l'exposition ;
-- connaissance, usage et intentions selon l'année ;
-- pratiques Q4 ;
-- usages Q5 selon l'année ;
-- intentions Q13 selon l'exposition ;
-- réponses « je ne sais pas » sur les intentions ;
-- intentions selon les niveaux de connaissance et d'usage ;
-- perceptions Q15 selon l'exposition ;
-- environnement Q12 selon l'exposition ;
-- perceptions selon l'environnement perçu ;
-- profils exploratoires de répondants ;
-- focus non formés / autoformés / dispositif organisé ;
-- couverture du plan de dépouillement.
+## Annexe graphique
 
-## Rapport final
+Le même script génère `outputs_osyr_rapport_final/annexe_graphique_osyr.docx`.
 
-Le script `05_produire_rapport_final.R` produit :
-
-```text
-outputs_osyr_rapport_final/rapport_final_osyr.docx
-outputs_osyr_rapport_final/tables/plan_rapport_final.csv
-outputs_osyr_rapport_final/tables/catalogue_figures_rapport.csv
-outputs_osyr_rapport_final/tables/catalogue_figures_finales.csv
-outputs_osyr_rapport_final/tables/couverture_plan_de_depouillement.csv
-outputs_osyr_rapport_final/tables/figures_manquantes.csv
-```
-
-Le rapport contient :
-
-- le plan du rapport ;
-- les questions traitées par section ;
-- les figures consolidées ;
-- les sorties mobilisées ;
-- un emplacement clair pour la rédaction des interprétations ;
-- une annexe méthodologique.
-
-Le script n'utilise plus les styles Word `Title` ou `Subtitle`, car ils peuvent être absents selon les templates. Il s'appuie sur les styles standards `heading 1`, `heading 2`, `heading 3` et `Normal`.
+Les figures non retenues dans le corps principal y sont conservées. Les sélections sont documentées dans `figures_rapport_principal.csv` et `figures_annexe.csv`.
 
 ## Présentation finale
 
-Le script `06_generer_presentation_finale.R` produit :
+`06_generer_presentation_finale.R` génère `outputs_osyr_presentation_finale/presentation_finale_osyr.pptx`.
 
-```text
-outputs_osyr_presentation_finale/presentation_finale_osyr.pptx
-outputs_osyr_presentation_finale/catalogue_figures_presentation.csv
-```
+La présentation suit une logique plus éditoriale : synthèse générale, slide de section, slide « résultats à retenir », au maximum deux figures principales par section, puis conclusion.
 
-La présentation reprend désormais jusqu'à quatre figures par section lorsque les sorties sont disponibles. Les titres restent descriptifs et alignés sur les sections du plan.
+## Charte graphique OSYR
 
-## Catalogue des figures
+La charte est centralisée dans `R/osyr_style.R`.
 
-Le catalogue de départ est défini dans `R/osyr_style.R`. La couche `R/osyr_final_analyses.R` l'enrichit ensuite en produisant :
+Couleurs principales : marron `#998A5B`, vert `#7FB680`, beige `#FEFAD4`, vert sombre `#2F4A35`.
 
-```text
-outputs_osyr_rapport_final/tables/catalogue_figures_finales.csv
-```
+Le thème graphique impose des titres plus courts, des marges plus importantes, des tailles de texte homogènes, des légendes en bas et alignées à gauche, un quadrillage limité et des tableaux cohérents avec le gabarit OSYR.
 
-Ce catalogue consolidé indique pour chaque figure :
+## Synthèses textuelles
 
-- la section du rapport ;
-- le bloc analytique ;
-- le titre à utiliser ;
-- le nom du fichier ;
-- le chemin réel ;
-- la légende courte ;
-- le niveau de priorité ;
-- l'état de disponibilité.
+`R/osyr_report_text.R` lit les tables produites par le workflow et génère des résumés factuels pour le rapport et la présentation.
 
-## Précautions d'interprétation
+Il ne remplace pas l'interprétation scientifique. Il automatise uniquement des formulations fondées sur les valeurs calculées : valeurs les plus élevées ou faibles, gaps connaissance-usage, écarts exposés/non exposés et résultats les plus stables dans les tests de sensibilité.
 
-Les résultats doivent être présentés comme descriptifs et associatifs. Les modèles ajustés ne permettent pas d'attribuer causalement les différences observées aux dispositifs de formation. Les analyses reposent sur des réponses déclaratives et doivent tenir compte des effets de discipline, d'année de thèse, d'exposition aux formations et de contexte institutionnel.
+## Points du plan encore à surveiller
 
-## Ordre recommandé d'exécution
+Le plan de dépouillement mentionne explicitement plusieurs objets qui doivent être produits dès que leur codage est disponible : organisateurs des formations Q9, nombre de formations Q10 si la variable détaillée n'est pas encore mobilisée, raisons de non-adoption Q14, représentations spontanées et analyse lexicale si les sorties textuelles ne sont pas encore intégrées au catalogue final.
 
-Pour une production complète :
+Ces éléments ne doivent pas être inventés lorsque les variables correspondantes ne sont pas disponibles. Le rapport final doit signaler le manque de sortie plutôt que le masquer.
 
-```r
-source("00_lancer_workflow_complet.R")
-```
+## Reproductibilité
 
-Pour ne produire que les livrables finaux, après avoir déjà généré les sorties des scripts 01 et 03 :
+Les données brutes ne sont pas versionnées dans GitHub. Elles restent attendues sous `data/BJ30232 - BDD V2.csv` et `data/BJ30232 - DATAMAP V2.xlsx`.
 
-```r
-source("05_produire_rapport_final.R")
-source("06_generer_presentation_finale.R")
-```
+Le workflow produit ensuite les bases nettoyées, les tables, les figures, le rapport et la présentation.

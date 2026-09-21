@@ -1,19 +1,13 @@
 # =============================================================================
 # SCRIPT 00 — LANCER LE WORKFLOW COMPLET OSYR
-# Version production finale — 21/09/2026
+# Version production finale — 21/09/2026 v2
 # =============================================================================
-# Ce script est le point d'entrée recommandé.
-# Il exécute les scripts dans le bon ordre, depuis la construction de la base
-# analytique jusqu'à la production du rapport final et de la présentation finale.
-#
-# Utilisation :
-#   1) Ouvrir RStudio à la racine de ce dossier.
-#   2) Créer un dossier data/.
-#   3) Y placer :
-#        data/BJ30232 - BDD V2.csv
-#        data/BJ30232 - DATAMAP V2.xlsx
-#   4) Lancer :
-#        source("00_lancer_workflow_complet.R")
+# Point d'entrée recommandé.
+# Le workflow distingue désormais explicitement :
+#   1. analyses principales ;
+#   2. analyses complémentaires ;
+#   3. analyses de production finale ;
+#   4. génération du rapport et de la présentation.
 # =============================================================================
 
 options(
@@ -24,19 +18,22 @@ options(
 )
 
 # -----------------------------------------------------------------------------
-# Options : mettre FALSE pour ne pas relancer une étape déjà produite.
+# Options
 # -----------------------------------------------------------------------------
+
 RUN_01_ANALYSE_PRINCIPALE       <- TRUE
 RUN_02_RAPPORT_WORD_EXISTANT    <- FALSE
 RUN_03_ANALYSES_COMPLEMENTAIRES <- TRUE
 RUN_04_POWERPOINT_EXISTANT      <- FALSE
+RUN_FINAL_ANALYSES              <- TRUE
 RUN_05_RAPPORT_FINAL            <- TRUE
 RUN_06_PRESENTATION_FINALE      <- TRUE
 RUN_99_SESSION_INFO             <- TRUE
 
 # -----------------------------------------------------------------------------
-# Vérification des données attendues.
+# Vérification des données
 # -----------------------------------------------------------------------------
+
 required_data <- c(
   file.path("data", "BJ30232 - BDD V2.csv"),
   file.path("data", "BJ30232 - DATAMAP V2.xlsx")
@@ -62,8 +59,9 @@ run_script <- function(path) {
 }
 
 # -----------------------------------------------------------------------------
-# Exécution séquentielle.
+# Exécution séquentielle
 # -----------------------------------------------------------------------------
+
 if (RUN_01_ANALYSE_PRINCIPALE) {
   run_script("01_analyse_osyr_base_et_modeles.R")
 }
@@ -78,6 +76,10 @@ if (RUN_03_ANALYSES_COMPLEMENTAIRES) {
 
 if (RUN_04_POWERPOINT_EXISTANT) {
   run_script("04_generer_presentation_powerpoint.R")
+}
+
+if (RUN_FINAL_ANALYSES) {
+  run_script(file.path("R", "osyr_final_analyses.R"))
 }
 
 if (RUN_05_RAPPORT_FINAL) {
@@ -97,5 +99,8 @@ message("Sorties attendues :")
 message(" - outputs_osyr_v2_final/")
 message(" - outputs_osyr_v2_complements_30062026/")
 message(" - outputs_osyr_rapport_final/")
+message("   - rapport_final_osyr.docx")
+message("   - annexe_graphique_osyr.docx")
 message(" - outputs_osyr_presentation_finale/")
+message("   - presentation_finale_osyr.pptx")
 message(" - outputs_osyr_v2_session/")
