@@ -1,20 +1,16 @@
 # =============================================================================
 # SCRIPT 05 — PRODUIRE LE RAPPORT FINAL OSYR
-# Version 2026-09-21
+# Version 2026-09-21 v3
 # =============================================================================
-# Ce script correspond à l'étape de production finale.
-# Il ne remplace pas les analyses produites par les scripts 01 et 03 : il les
-# organise selon le plan de dépouillement de septembre 2026 et prépare un rapport
-# Word structuré, documenté et directement relisible.
+# Étape de production finale.
 #
-# Entrées attendues :
-#   - outputs_osyr_v2_final/
-#   - outputs_osyr_v2_complements_30062026/
+# Ce script consolide les analyses déjà produites par les scripts 01 et 03,
+# relance la couche d'analyses finales si elle est disponible, puis génère un
+# rapport Word structuré selon le plan de dépouillement de septembre 2026.
 #
-# Sorties :
-#   - outputs_osyr_rapport_final/rapport_final_osyr.docx
-#   - outputs_osyr_rapport_final/tables/plan_rapport_final.csv
-#   - outputs_osyr_rapport_final/tables/catalogue_figures_rapport.csv
+# Le script utilise uniquement les styles Word standards disponibles dans le
+# document par défaut d'officer : Normal, heading 1, heading 2, heading 3.
+# Cela évite l'erreur liée au style 'Title' absent de certains templates.
 # =============================================================================
 
 options(
@@ -22,10 +18,6 @@ options(
   dplyr.summarise.inform = FALSE,
   readr.show_col_types = FALSE
 )
-
-# -----------------------------------------------------------------------------
-# 0. Packages
-# -----------------------------------------------------------------------------
 
 install_if_missing <- function(pkgs) {
   missing <- pkgs[!vapply(pkgs, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1))]
@@ -37,11 +29,11 @@ install_if_missing(pkgs)
 invisible(lapply(pkgs, library, character.only = TRUE))
 
 # -----------------------------------------------------------------------------
-# 1. Fonctions de style OSYR
+# 1. Style et production des analyses finales
 # -----------------------------------------------------------------------------
 
 if (!file.exists("R/osyr_style.R")) {
-  stop("Fichier manquant : R/osyr_style.R. Ce fichier centralise le style OSYR et le plan de production finale.")
+  stop("Fichier manquant : R/osyr_style.R")
 }
 source("R/osyr_style.R")
 
@@ -51,69 +43,127 @@ ensure_dir(dirs$report)
 ensure_dir(file.path(dirs$report, "tables"))
 ensure_dir(file.path(dirs$report, "figures"))
 
+# La couche finale ajoute des figures et tableaux directement alignés sur le plan
+# de dépouillement. Elle est appelée ici pour éviter un rapport trop pauvre en
+# analyses.
+if (file.exists("R/osyr_final_analyses.R")) {
+  source("R/osyr_final_analyses.R")
+} else {
+  warning("R/osyr_final_analyses.R absent : seules les figures déjà disponibles seront utilisées.")
+}
+
 # -----------------------------------------------------------------------------
-# 2. Plan du rapport et catalogue de figures
+# 2. Plan et catalogue consolidé
 # -----------------------------------------------------------------------------
 
 plan_rapport <- osyr_final_plan_registry()
-figure_catalog <- build_figure_catalog()
-
 safe_write_csv(plan_rapport, file.path(dirs$report, "tables", "plan_rapport_final.csv"))
+
+catalog_final_path <- file.path(dirs$report, "tables", "catalogue_figures_finales.csv")
+
+if (file.exists(catalog_final_path)) {
+  figure_catalog <- readr::read_csv(catalog_final_path, show_col_types = FALSE)
+} else {
+  figure_catalog <- build_figure_catalog()
+
+  figures_available <- figure_catalog |>
+    dplyr::filter(available)
+
+  if (nrow(figures_available) > 0) {
+    purrr::pwalk(
+      figures_available,
+      function(section, bloc, titre, file, source_dir, priorite, path, available, ...) {
+        src <- resolve_figure_path(file, source_dir)
+        dst <- file.path(dirs$report, "figures", file)
+        if (!is.na(src) && file.exists(src)) fs::file_copy(src, dst, overwrite = TRUE)
+      }
+    )
+  }
+
+  figure_catalog <- figure_catalog |>
+    dplyr::mutate(
+      path = file.path(dirs$report, "figures", file),
+      caption = paste0("Figure issue des sorties ", source_dir, ".")
+    )
+}
+
+if (!"caption" %in% names(figure_catalog)) {
+  figure_catalog$caption <- paste0("Figure mobilisée pour la section ", figure_catalog$section, ".")
+}
+if (!"source_dir" %in% names(figure_catalog)) figure_catalog$source_dir <- "rapport_final"
+if (!"priorite" %in% names(figure_catalog)) figure_catalog$priorite <- 9
+
+figure_catalog <- figure_catalog |>
+  dplyr::mutate(
+    section = as.integer(section),
+    path = as.character(path),
+    caption = as.character(caption),
+    available = !is.na(path) & file.exists(path)
+  ) |>
+  dplyr::arrange(section, priorite, titre)
+
 safe_write_csv(figure_catalog, file.path(dirs$report, "tables", "catalogue_figures_rapport.csv"))
 
 missing_figures <- figure_catalog |>
   dplyr::filter(!available) |>
-  dplyr::select(section, bloc, titre, file, source_dir, priorite)
+  dplyr::select(dplyr::any_of(c("section", "bloc", "titre", "file", "source_dir", "priorite")))
 
 safe_write_csv(missing_figures, file.path(dirs$report, "tables", "figures_manquantes.csv"))
 
-# Copier les figures disponibles dans le dossier du rapport pour figer l'état de
-# production. Le rapport pointe ensuite vers ces copies.
-figures_available <- figure_catalog |>
-  dplyr::filter(available)
-
-if (nrow(figures_available) > 0) {
-  purrr::pwalk(
-    figures_available,
-    function(section, bloc, titre, file, source_dir, priorite, path, available, ...) {
-      fs::file_copy(path, file.path(dirs$report, "figures", file), overwrite = TRUE)
-    }
-  )
+coverage_path <- file.path(dirs$report, "tables", "couverture_plan_de_depouillement.csv")
+coverage_table <- if (file.exists(coverage_path)) {
+  readr::read_csv(coverage_path, show_col_types = FALSE)
+} else {
+  plan_rapport |>
+    dplyr::left_join(
+      figure_catalog |>
+        dplyr::filter(available) |>
+        dplyr::count(section, name = "n_figures_disponibles"),
+      by = "section"
+    ) |>
+    dplyr::mutate(n_figures_disponibles = tidyr::replace_na(n_figures_disponibles, 0L))
 }
+
+safe_write_csv(coverage_table, file.path(dirs$report, "tables", "couverture_plan_de_depouillement.csv"))
 
 # -----------------------------------------------------------------------------
 # 3. Helpers Word
 # -----------------------------------------------------------------------------
 
-add_osyr_title <- function(doc, title, subtitle = NULL) {
-  doc <- officer::body_add_par(doc, title, style = "Title")
-  if (!is.null(subtitle)) {
-    doc <- officer::body_add_par(doc, subtitle, style = "Subtitle")
-  }
+add_doc_title <- function(doc, title, subtitle = NULL) {
+  doc <- officer::body_add_par(doc, title, style = "heading 1")
+  if (!is.null(subtitle)) doc <- officer::body_add_par(doc, subtitle, style = "Normal")
   doc
 }
 
-add_note <- function(doc, text) {
-  officer::body_add_par(doc, text, style = "Normal")
-}
-
 add_section_table <- function(doc, data) {
+  if (!is.data.frame(data) || nrow(data) == 0) return(doc)
   ft <- flextable::flextable(data) |>
     style_flextable_osyr()
   officer::body_add_flextable(doc, ft)
 }
 
 add_figure_if_exists <- function(doc, path, title, caption = NULL, width = 6.4) {
-  if (is.na(path) || !file.exists(path)) {
-    doc <- officer::body_add_par(doc, paste0("Figure non disponible : ", title), style = "Normal")
-    return(doc)
-  }
+  if (is.na(path) || !file.exists(path)) return(doc)
   doc <- officer::body_add_par(doc, title, style = "heading 3")
   doc <- officer::body_add_img(doc, src = path, width = width, height = width * 0.56)
-  if (!is.null(caption)) {
+  if (!is.null(caption) && !is.na(caption) && nzchar(caption)) {
     doc <- officer::body_add_par(doc, caption, style = "Normal")
   }
   doc
+}
+
+add_points_a_rediger <- function(doc, section_name) {
+  doc <- officer::body_add_par(doc, "Points à rédiger", style = "heading 2")
+  officer::body_add_par(
+    doc,
+    paste(
+      "Rédiger ici les principaux résultats de la section",
+      paste0("'", section_name, "'"),
+      "en distinguant les constats descriptifs, les associations statistiques et les limites d'interprétation."
+    ),
+    style = "Normal"
+  )
 }
 
 # -----------------------------------------------------------------------------
@@ -122,19 +172,24 @@ add_figure_if_exists <- function(doc, path, title, caption = NULL, width = 6.4) 
 
 doc <- officer::read_docx()
 
-doc <- add_osyr_title(
+doc <- add_doc_title(
   doc,
   osyr_report_title(),
-  "Structure de production finale fondée sur le plan de dépouillement de septembre 2026"
+  "Rapport structuré selon le plan de dépouillement de septembre 2026"
 )
 
-doc <- add_note(doc, paste0("Date de génération : ", format(Sys.Date(), "%d/%m/%Y")))
-doc <- add_note(doc, osyr_method_note())
+doc <- officer::body_add_par(doc, paste0("Date de génération : ", format(Sys.Date(), "%d/%m/%Y")), style = "Normal")
+doc <- officer::body_add_par(doc, osyr_method_note(), style = "Normal")
 
 doc <- officer::body_add_par(doc, "Plan du rapport", style = "heading 1")
-plan_table <- plan_rapport |>
-  dplyr::select(section, bloc, objectif)
-doc <- add_section_table(doc, plan_table)
+doc <- add_section_table(doc, plan_rapport |> dplyr::select(section, bloc, objectif))
+
+doc <- officer::body_add_par(doc, "Couverture analytique", style = "heading 1")
+doc <- add_section_table(
+  doc,
+  coverage_table |>
+    dplyr::select(dplyr::any_of(c("section", "bloc", "n_figures_disponibles", "statut_couverture")))
+)
 
 for (sec in sort(unique(plan_rapport$section))) {
   sec_info <- plan_rapport |>
@@ -148,7 +203,7 @@ for (sec in sort(unique(plan_rapport$section))) {
   doc <- officer::body_add_par(doc, "Questions traitées", style = "heading 2")
   doc <- officer::body_add_par(doc, sec_info$questions_principales, style = "Normal")
 
-  doc <- officer::body_add_par(doc, "Sorties mobilisées", style = "heading 2")
+  doc <- officer::body_add_par(doc, "Sorties produites", style = "heading 2")
   doc <- officer::body_add_par(doc, sec_info$sorties_attendues, style = "Normal")
 
   figs <- figure_catalog |>
@@ -158,30 +213,17 @@ for (sec in sort(unique(plan_rapport$section))) {
   if (nrow(figs) > 0) {
     doc <- officer::body_add_par(doc, "Figures", style = "heading 2")
     for (i in seq_len(nrow(figs))) {
-      fig_path <- file.path(dirs$report, "figures", figs$file[i])
-      doc <- add_figure_if_exists(
-        doc,
-        path = fig_path,
-        title = figs$titre[i],
-        caption = paste0("Source : enquête OSYR, sorties ", figs$source_dir[i], ".")
-      )
+      doc <- add_figure_if_exists(doc, figs$path[i], figs$titre[i], figs$caption[i])
     }
   }
 
-  doc <- officer::body_add_par(doc, "Éléments d'interprétation à rédiger", style = "heading 2")
-  doc <- officer::body_add_par(
-    doc,
-    paste(
-      "Cette sous-section doit être rédigée à partir des tableaux et figures produits.",
-      "Elle doit distinguer les constats descriptifs, les associations statistiques et les limites d'interprétation."
-    ),
-    style = "Normal"
-  )
+  doc <- add_points_a_rediger(doc, sec_info$bloc)
 }
 
-# Annexes méthodologiques.
+# Annexes.
 doc <- officer::body_add_break(doc)
 doc <- officer::body_add_par(doc, "Annexes méthodologiques", style = "heading 1")
+
 doc <- officer::body_add_par(doc, "Catalogue des figures", style = "heading 2")
 doc <- add_section_table(
   doc,
@@ -202,3 +244,4 @@ print(doc, target = out_docx)
 
 message("Rapport final généré : ", normalizePath(out_docx, mustWork = FALSE))
 message("Catalogue des figures : ", normalizePath(file.path(dirs$report, "tables", "catalogue_figures_rapport.csv"), mustWork = FALSE))
+message("Nombre de figures disponibles : ", sum(figure_catalog$available, na.rm = TRUE))

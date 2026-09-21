@@ -1,16 +1,12 @@
 # =============================================================================
 # SCRIPT 06 — GÉNÉRER LA PRÉSENTATION FINALE OSYR
-# Version 2026-09-21
+# Version 2026-09-21 v2
 # =============================================================================
-# Ce script produit une présentation PowerPoint sobre, structurée selon le plan
-# de dépouillement de septembre 2026 et alignée sur les couleurs OSYR.
+# Présentation finale alignée sur la trame du rapport.
 #
-# Entrées attendues :
-#   - outputs_osyr_v2_final/figures/
-#   - outputs_osyr_v2_complements_30062026/figures/
-#
-# Sortie :
-#   - outputs_osyr_presentation_finale/presentation_finale_osyr.pptx
+# Le script utilise le catalogue consolidé produit par le script 05. S'il n'est
+# pas encore disponible, il relance la couche R/osyr_final_analyses.R pour créer
+# les figures supplémentaires avant de construire la présentation.
 # =============================================================================
 
 options(
@@ -33,23 +29,33 @@ install_if_missing(pkgs)
 invisible(lapply(pkgs, library, character.only = TRUE))
 
 # -----------------------------------------------------------------------------
-# 1. Style OSYR
+# 1. Style OSYR et catalogue de figures
 # -----------------------------------------------------------------------------
 
-if (!file.exists("R/osyr_style.R")) {
-  stop("Fichier manquant : R/osyr_style.R.")
-}
+if (!file.exists("R/osyr_style.R")) stop("Fichier manquant : R/osyr_style.R.")
 source("R/osyr_style.R")
 
 cols <- osyr_colors()
 dirs <- osyr_dirs()
 ensure_dir(dirs$ppt)
 
+catalog_final_path <- file.path(dirs$report, "tables", "catalogue_figures_finales.csv")
+
+if (!file.exists(catalog_final_path) && file.exists("R/osyr_final_analyses.R")) {
+  source("R/osyr_final_analyses.R")
+}
+
 plan_rapport <- osyr_final_plan_registry()
-figure_catalog <- build_figure_catalog()
-figure_catalog <- figure_catalog |>
-  dplyr::filter(available) |>
-  dplyr::arrange(section, priorite, titre)
+
+if (file.exists(catalog_final_path)) {
+  figure_catalog <- readr::read_csv(catalog_final_path, show_col_types = FALSE) |>
+    dplyr::filter(available, file.exists(path)) |>
+    dplyr::arrange(section, priorite, titre)
+} else {
+  figure_catalog <- build_figure_catalog() |>
+    dplyr::filter(available) |>
+    dplyr::arrange(section, priorite, titre)
+}
 
 safe_write_csv(figure_catalog, file.path(dirs$ppt, "catalogue_figures_presentation.csv"))
 
@@ -197,7 +203,7 @@ ppt <- add_title(ppt, "Plan de la présentation", "Organisation selon la trame d
 ppt <- add_bullets(ppt, paste0(plan_rapport$section, ". ", plan_rapport$bloc), size = 13.5)
 page <- page + 1
 
-# Sections + figures prioritaires.
+# Sections + davantage de figures.
 for (sec in sort(unique(plan_rapport$section))) {
   sec_info <- plan_rapport |>
     dplyr::filter(section == sec) |>
@@ -208,11 +214,15 @@ for (sec in sort(unique(plan_rapport$section))) {
   figs <- figure_catalog |>
     dplyr::filter(section == sec) |>
     dplyr::arrange(priorite, titre) |>
-    dplyr::slice_head(n = 2)
+    dplyr::slice_head(n = 4)
 
   if (nrow(figs) > 0) {
     for (i in seq_len(nrow(figs))) {
-      subtitle <- paste0("Source : sorties ", figs$source_dir[i], " — ", figs$bloc[i])
+      subtitle <- dplyr::if_else(
+        "caption" %in% names(figs) && !is.na(figs$caption[i]),
+        figs$caption[i],
+        paste0("Source : sorties ", figs$source_dir[i], " — ", figs$bloc[i])
+      )
       ppt <- add_figure_slide(ppt, figs$titre[i], subtitle, figs$path[i], page)
       page <- page + 1
     }
@@ -241,3 +251,4 @@ print(ppt, target = out_pptx)
 
 message("Présentation finale générée : ", normalizePath(out_pptx, mustWork = FALSE))
 message("Catalogue des figures : ", normalizePath(file.path(dirs$ppt, "catalogue_figures_presentation.csv"), mustWork = FALSE))
+message("Nombre de figures dans le catalogue : ", nrow(figure_catalog))
