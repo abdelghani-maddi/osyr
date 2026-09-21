@@ -4,7 +4,7 @@
 # Ce fichier centralise les couleurs, les libellés, les chemins et les fonctions
 # utilisées par les scripts de rapport final et de présentation finale.
 #
-# Les couleurs reprennent le gabarit OSYR :
+# Couleurs issues du gabarit OSYR :
 # - marron : #998A5B
 # - vert principal : #7FB680
 # - beige : #FEFAD4
@@ -19,6 +19,7 @@ osyr_colors <- function() {
     pale_green = "#EAF5EC",
     grey = "#667085",
     light_grey = "#F2F4F7",
+    mid_grey = "#D0D5DD",
     white = "#FFFFFF",
     black = "#1F2933"
   )
@@ -58,37 +59,141 @@ has_rows <- function(x) {
   is.data.frame(x) && nrow(x) > 0 && ncol(x) > 0
 }
 
-osyr_theme <- function(base_size = 11) {
+# -----------------------------------------------------------------------------
+# Charte graphique ggplot
+# -----------------------------------------------------------------------------
+
+osyr_theme <- function(base_size = 11.5) {
   cols <- osyr_colors()
+
   ggplot2::theme_minimal(base_size = base_size, base_family = "sans") +
     ggplot2::theme(
       plot.title.position = "plot",
-      plot.title = ggplot2::element_text(face = "bold", color = cols[["dark_green"]], size = base_size + 5),
-      plot.subtitle = ggplot2::element_text(color = cols[["grey"]], size = base_size + 1),
-      plot.caption = ggplot2::element_text(color = cols[["grey"]], size = base_size - 2, hjust = 0),
-      axis.title = ggplot2::element_text(color = cols[["black"]]),
-      axis.text = ggplot2::element_text(color = cols[["black"]]),
+      plot.caption.position = "plot",
+      plot.margin = ggplot2::margin(16, 22, 14, 16),
+      plot.title = ggplot2::element_text(
+        face = "bold",
+        color = cols[["dark_green"]],
+        size = base_size + 5.5,
+        margin = ggplot2::margin(b = 5)
+      ),
+      plot.subtitle = ggplot2::element_text(
+        color = cols[["grey"]],
+        size = base_size + 0.8,
+        lineheight = 1.12,
+        margin = ggplot2::margin(b = 11)
+      ),
+      plot.caption = ggplot2::element_text(
+        color = cols[["grey"]],
+        size = base_size - 2.2,
+        hjust = 0,
+        lineheight = 1.08,
+        margin = ggplot2::margin(t = 10)
+      ),
+      axis.title = ggplot2::element_text(
+        color = cols[["black"]],
+        face = "plain",
+        size = base_size
+      ),
+      axis.text = ggplot2::element_text(
+        color = cols[["black"]],
+        size = base_size - 0.6
+      ),
+      axis.text.y = ggplot2::element_text(margin = ggplot2::margin(r = 6)),
+      axis.text.x = ggplot2::element_text(margin = ggplot2::margin(t = 5)),
+      axis.ticks = ggplot2::element_blank(),
       panel.grid.major.y = ggplot2::element_blank(),
+      panel.grid.major.x = ggplot2::element_line(
+        color = "#E5E7EB",
+        linewidth = 0.35
+      ),
       panel.grid.minor = ggplot2::element_blank(),
-      panel.grid.major.x = ggplot2::element_line(color = "#E5E7EB", linewidth = 0.35),
       legend.position = "bottom",
+      legend.justification = "left",
+      legend.box.just = "left",
       legend.title = ggplot2::element_blank(),
+      legend.text = ggplot2::element_text(color = cols[["black"]]),
+      legend.key.height = grid::unit(0.45, "cm"),
+      legend.key.width = grid::unit(0.65, "cm"),
       plot.background = ggplot2::element_rect(fill = "white", color = NA),
       panel.background = ggplot2::element_rect(fill = "white", color = NA),
-      strip.background = ggplot2::element_rect(fill = cols[["pale_green"]], color = NA),
-      strip.text = ggplot2::element_text(face = "bold", color = cols[["dark_green"]])
+      strip.background = ggplot2::element_rect(
+        fill = cols[["pale_green"]],
+        color = NA
+      ),
+      strip.text = ggplot2::element_text(
+        face = "bold",
+        color = cols[["dark_green"]],
+        size = base_size - 0.3,
+        margin = ggplot2::margin(5, 5, 5, 5)
+      )
     )
 }
 
+osyr_scale_fill_exposure <- function(drop = TRUE) {
+  cols <- osyr_colors()
+  ggplot2::scale_fill_manual(
+    values = c(
+      "Aucun dispositif" = cols[["brown"]],
+      "Autoformation / autre seulement" = cols[["beige"]],
+      "Dispositif organisé" = cols[["green"]]
+    ),
+    drop = drop
+  )
+}
+
+osyr_scale_color_exposure <- function(drop = TRUE) {
+  cols <- osyr_colors()
+  ggplot2::scale_color_manual(
+    values = c(
+      "Aucun dispositif" = cols[["brown"]],
+      "Autoformation / autre seulement" = cols[["brown"]],
+      "Dispositif organisé" = cols[["green"]]
+    ),
+    drop = drop
+  )
+}
+
+osyr_heat_scale <- function(labels = scales::percent_format(accuracy = 1)) {
+  cols <- osyr_colors()
+  ggplot2::scale_fill_gradient(
+    low = cols[["light_grey"]],
+    high = cols[["green"]],
+    labels = labels,
+    na.value = "#F7F7F7"
+  )
+}
+
+# -----------------------------------------------------------------------------
+# Tableaux Word
+# -----------------------------------------------------------------------------
+
 style_flextable_osyr <- function(ft) {
   cols <- osyr_colors()
+
   ft |>
     flextable::theme_vanilla() |>
     flextable::bg(part = "header", bg = cols[["green"]]) |>
     flextable::color(part = "header", color = "white") |>
     flextable::bold(part = "header") |>
-    flextable::fontsize(size = 9, part = "all") |>
-    flextable::padding(padding = 4, part = "all") |>
+    flextable::fontsize(size = 8.7, part = "all") |>
+    flextable::fontsize(size = 9, part = "header") |>
+    flextable::padding(padding = 4.5, part = "all") |>
+    flextable::border_remove() |>
+    flextable::hline_top(
+      border = officer::fp_border(color = cols[["green"]], width = 1.2),
+      part = "header"
+    ) |>
+    flextable::hline_bottom(
+      border = officer::fp_border(color = cols[["green"]], width = 1.1),
+      part = "header"
+    ) |>
+    flextable::hline(
+      border = officer::fp_border(color = "#E5E7EB", width = 0.45),
+      part = "body"
+    ) |>
+    flextable::align(align = "left", part = "all") |>
+    flextable::valign(valign = "center", part = "all") |>
     flextable::autofit()
 }
 
@@ -122,7 +227,7 @@ osyr_final_plan_registry <- function() {
     6, "Profils et analyses transversales",
     "Identifier des configurations de répondants et des résultats utiles pour l'interprétation finale.",
     "Profils de doctorants ; autoformés ; non formés ; cumul formation + environnement + pratiques ; analyses factorielles ou classification si les effectifs le permettent.",
-    "Profils, CAH éventuelle, synthèse de robustesse, annexes méthodologiques.",
+    "Profils, classification exploratoire éventuelle, synthèse de robustesse, annexes méthodologiques.",
     7, "Précautions méthodologiques",
     "Expliciter les limites de l'enquête et éviter les interprétations causales.",
     "Désirabilité sociale ; biais de réponse ; déclaratif ; corrélations non causales ; différences disciplinaires ; formations obligatoires.",
@@ -131,7 +236,7 @@ osyr_final_plan_registry <- function() {
 }
 
 # -----------------------------------------------------------------------------
-# Catalogue des figures attendues dans le rapport final
+# Catalogue des figures existantes mobilisables
 # -----------------------------------------------------------------------------
 
 osyr_figure_catalog <- function() {
@@ -170,6 +275,7 @@ resolve_figure_path <- function(file, source_dir = c("final", "complements")) {
 
 build_figure_catalog <- function() {
   catalog <- osyr_figure_catalog()
+
   catalog |>
     dplyr::mutate(
       path = purrr::map2_chr(file, source_dir, resolve_figure_path),
@@ -179,7 +285,7 @@ build_figure_catalog <- function() {
 }
 
 # -----------------------------------------------------------------------------
-# Titres sobres pour le rapport et la présentation
+# Titres et note méthodologique
 # -----------------------------------------------------------------------------
 
 osyr_report_title <- function() "OSYR — Rapport d'analyse finale"
