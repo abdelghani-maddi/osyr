@@ -1055,36 +1055,46 @@ if (has_rows(item_tests)) {
 
 # 10.5 Balance des covariables.
 if (has_rows(covariate_balance)) {
-  p_balance <- covariate_balance |>
-    dplyr::filter(type == "categorical_prop_diff") |>
+  balance_plot_data <- covariate_balance |>
+    dplyr::filter(type == "categorical_binary_smd", !is.na(standardized_difference)) |>
     dplyr::mutate(
-      label = paste(covariate, stringr::str_wrap(as.character(modality), 35), sep = " — "),
-      label = reorder_factor_by(label, abs(standardized_difference), max)
+      label = paste(covariate, stringr::str_wrap(as.character(modality), 35), sep = " — ")
     ) |>
-    dplyr::slice_max(order_by = abs(standardized_difference), n = 30) |>
-    ggplot2::ggplot(ggplot2::aes(x = standardized_difference * 100, y = label, fill = imbalance_flag)) +
-    ggplot2::geom_vline(xintercept = 0, color = "#344054") +
-    ggplot2::geom_col(width = 0.68) +
-    ggplot2::scale_x_continuous(labels = function(x) paste0(x, " pts")) +
-    ggplot2::scale_fill_manual(
-      values = c(
-        "Fort déséquilibre" = osyr_cols[["coral"]],
-        "Déséquilibre modéré" = osyr_cols[["orange"]],
-        "Équilibre acceptable" = osyr_cols[["blue"]]
-      ),
-      drop = TRUE
-    ) +
-    ggplot2::labs(
-      title = "Déséquilibres de composition entre exposés et non exposés",
-      subtitle = "Différences de proportions pondérées avant interprétation des écarts.",
-      x = "Différence exposés - non exposés",
-      y = NULL,
-      fill = NULL,
-      caption = "Ces déséquilibres invitent à lire les écarts comme associatifs et non causaux."
-    ) +
-    theme_osyr(base_size = 10.5)
+    dplyr::slice_max(order_by = abs(standardized_difference), n = 30, with_ties = FALSE)
 
-  save_plot(p_balance, "04_balance_covariables_exposes_non_exposes.png", width = 13.5, height = 9)
+  if (has_rows(balance_plot_data)) {
+    balance_plot_data <- balance_plot_data |>
+      dplyr::mutate(
+        label = reorder_factor_by(label, abs(standardized_difference), max)
+      )
+
+    p_balance <- balance_plot_data |>
+      ggplot2::ggplot(ggplot2::aes(x = standardized_difference, y = label, fill = imbalance_flag)) +
+      ggplot2::geom_vline(xintercept = 0, color = "#344054") +
+      ggplot2::geom_col(width = 0.68) +
+      ggplot2::scale_x_continuous(
+        labels = scales::label_number(accuracy = 0.01, decimal.mark = ",")
+      ) +
+      ggplot2::scale_fill_manual(
+        values = c(
+          "Fort déséquilibre" = osyr_cols[["coral"]],
+          "Déséquilibre modéré" = osyr_cols[["orange"]],
+          "Équilibre acceptable" = osyr_cols[["blue"]]
+        ),
+        drop = TRUE
+      ) +
+      ggplot2::labs(
+        title = "Déséquilibres de composition entre exposés et non exposés",
+        subtitle = "Différences standardisées pondérées par modalité ; |SMD| >= 0,10 signale un déséquilibre à examiner.",
+        x = "Différence standardisée (SMD)",
+        y = NULL,
+        fill = NULL,
+        caption = "Ces déséquilibres invitent à lire les écarts comme associatifs et non causaux."
+      ) +
+      theme_osyr(base_size = 10.5)
+
+    save_plot(p_balance, "04_balance_covariables_exposes_non_exposes.png", width = 13.5, height = 9)
+  }
 }
 
 # 10.6 Effet de l'exposition par discipline détaillée.
