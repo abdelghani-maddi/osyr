@@ -1,11 +1,31 @@
 # =============================================================================
-# Analyses complémentaires alignées sur le plan de dépouillement de septembre 2026
-# Version 2026-09-27
+# R/osyr_plan_depouillement_analyses.R — COUVERTURE DU PLAN DE DÉPOUILLEMENT
+# Version : 27/09/2026
 # =============================================================================
-# Cette couche complète les analyses déjà produites sans modifier leurs résultats.
-# Elle vise deux objectifs :
-#   1. documenter, point par point, la couverture du plan de dépouillement ;
-#   2. produire les analyses manquantes lorsque les variables sont disponibles.
+# RÔLE DANS LE WORKFLOW
+#   Quatrième couche analytique. Ce script confronte explicitement les sorties
+#   disponibles au plan de dépouillement de septembre 2026 et ajoute les analyses
+#   qui ne sont pas déjà couvertes par les scripts 01, 03 et osyr_final_analyses.
+#
+# ORGANISATION
+#   A. Parcours de formation : Q8-Q11, non-formés, autoformation, distanciel.
+#   B. Connaissances : familles Q5, facteurs associés et liens Q4-Q5.
+#   C. Pratiques : modèles élargis des usages Q5.
+#   D. Intentions : Q13, Q14, discordances et cumul des conditions.
+#   E. Perceptions : Q7, Q12, Q15 et plateformes d'accès non officielles.
+#   F. Représentations spontanées : Q3, lorsque les champs sont disponibles.
+#   G. Profils : CAH exploratoire et caractérisation des classes.
+#   H. Figures complémentaires.
+#   I. Matrice de couverture du plan.
+#
+# RÈGLES D'INTÉGRITÉ
+#   - Aucune analyse n'est déclarée « couverte » uniquement parce qu'une figure
+#     existe : la matrice de couverture pointe vers la table effectivement produite.
+#   - Les analyses conditionnelles à Q3, Q9 ou Q14 restent explicitement
+#     conditionnelles si les colonnes ne sont pas présentes.
+#   - Les analyses de profils et le dictionnaire Q3 sont exploratoires.
+#   - Les indices cumulatifs ne remplacent pas les modèles et ne sont jamais
+#     interprétés causalement.
 # =============================================================================
 
 options(scipen = 999, dplyr.summarise.inform = FALSE, readr.show_col_types = FALSE)
@@ -49,6 +69,23 @@ w_mean <- function(x, w) {
 }
 
 w_prop <- function(x, w) w_mean(as.numeric(x), w)
+
+weighted_standardize_matrix <- function(data, vars, weight_var = ".weight") {
+  # Standardisation pondérée utilisée pour les distances de la CAH.
+  w <- as.numeric(data[[weight_var]])
+  x <- as.matrix(data[, vars, drop = FALSE])
+  if (any(is.na(w) | w <= 0)) stop("La CAH requiert des poids strictement positifs.")
+
+  means <- colSums(x * w) / sum(w)
+  centered <- sweep(x, 2, means, "-")
+  vars_w <- colSums((centered^2) * w) / sum(w)
+  sds <- sqrt(vars_w)
+  if (any(!is.finite(sds) | sds <= 0)) {
+    stop("Une variable de la CAH présente une variance pondérée nulle.")
+  }
+
+  sweep(centered, 2, sds, "/")
+}
 
 w_cor <- function(x, y, w) {
   ok <- !is.na(x) & !is.na(y) & !is.na(w) & w > 0
@@ -130,7 +167,10 @@ q14_long <- read_clean("q14_long.csv")
 q15_long <- read_clean("q15_long.csv")
 
 # -----------------------------------------------------------------------------
-# Variables respondent-level utiles aux croisements du plan
+# Variables répondant nécessaires aux croisements du plan
+# -----------------------------------------------------------------------------
+# Construction d'indicateurs intermédiaires uniquement lorsque les variables
+# sources sont disponibles. Ces variables ne sont pas publiées comme résultats.
 # -----------------------------------------------------------------------------
 
 if (!"score_q11_training_evaluation" %in% names(df) && has_rows(q11_long) && "agree" %in% names(q11_long)) {
@@ -160,7 +200,10 @@ if (has_rows(q12_long) && all(c("respondent_id", "item_label", "response_num") %
 }
 
 # -----------------------------------------------------------------------------
-# A. Parcours de formation : Q8, Q9, Q10, Q11 et profils de formation
+# A. Parcours de formation — points 1 à 7 du plan
+# -----------------------------------------------------------------------------
+# Produit les distributions Q8-Q10, les croisements Q11 et les comparaisons
+# entre non-formés, autoformés, présentiel et distanciel.
 # -----------------------------------------------------------------------------
 
 if ("exposure3" %in% names(df)) {
@@ -344,7 +387,10 @@ if (all(mode_flags %in% names(df)) && length(focus_scores) > 0) {
 }
 
 # -----------------------------------------------------------------------------
-# B. Connaissances : familles Q5, facteurs associés et lien avec Q4
+# B. Connaissances — points 8 à 10 du plan
+# -----------------------------------------------------------------------------
+# Regroupe Q5 par familles analytiques, puis examine les différences selon
+# formation, année, discipline, environnement et situation de recherche Q4.
 # -----------------------------------------------------------------------------
 
 q5_family_person <- tibble::tibble()
@@ -483,7 +529,11 @@ if (has_rows(q4_long) && has_rows(q5_long)) {
 }
 
 # -----------------------------------------------------------------------------
-# C. Modèles élargis sur les pratiques de science ouverte
+# C. Pratiques — facteurs associés aux usages
+# -----------------------------------------------------------------------------
+# Modèles pondérés destinés à répondre à la question « quels facteurs sont
+# associés aux usages ? ». Les coefficients sont interprétés comme associations
+# conditionnelles, sans vocabulaire causal.
 # -----------------------------------------------------------------------------
 
 fit_weighted_model <- function(data, outcome, predictors, model_name) {
@@ -534,7 +584,10 @@ if ("score_q11_training_evaluation" %in% names(df) && "score_q5_used" %in% names
 }
 
 # -----------------------------------------------------------------------------
-# D. Intentions, attitudes, discordances et Q14
+# D. Intentions et attitudes — Q13, Q14 et discordances
+# -----------------------------------------------------------------------------
+# Analyse les intentions, les raisons de non-adoption, les liens avec pratiques,
+# connaissance, Q7/Q11 et l'indice cumulatif demandé par le plan.
 # -----------------------------------------------------------------------------
 
 corr_vars <- c(
@@ -670,18 +723,53 @@ if (all(c("score_q5_known_well", "score_q5_used", "score_q13_open_intentions") %
   u_med <- stats::median(df$score_q5_used, na.rm = TRUE)
   cumulative <- df |>
     dplyr::mutate(
-      high_training = if ("q10" %in% names(df)) suppressWarnings(as.numeric(q10)) %in% c(2, 3) else FALSE,
-      director_support = if ("director_environment" %in% names(df)) director_environment == "Incitation" else FALSE,
-      high_knowledge = score_q5_known_well >= k_med,
-      high_usage = score_q5_used >= u_med,
-      cumulative_support = rowSums(cbind(high_training, director_support, high_knowledge, high_usage), na.rm = TRUE)
+      # Chaque composante peut prendre TRUE, FALSE ou NA. Une information
+      # manquante ne doit pas être traitée comme une absence de condition.
+      high_training = dplyr::case_when(
+        !"q10" %in% names(df) ~ NA,
+        suppressWarnings(as.numeric(q10)) %in% c(2, 3) ~ TRUE,
+        suppressWarnings(as.numeric(q10)) == 1 ~ FALSE,
+        TRUE ~ NA
+      ),
+      director_support = dplyr::case_when(
+        !"director_environment" %in% names(df) ~ NA,
+        director_environment == "Incitation" ~ TRUE,
+        director_environment %in% c("Frein", "Neutre", "Je ne sais pas") ~ FALSE,
+        TRUE ~ NA
+      ),
+      high_knowledge = dplyr::case_when(
+        is.na(score_q5_known_well) ~ NA,
+        score_q5_known_well >= k_med ~ TRUE,
+        TRUE ~ FALSE
+      ),
+      high_usage = dplyr::case_when(
+        is.na(score_q5_used) ~ NA,
+        score_q5_used >= u_med ~ TRUE,
+        TRUE ~ FALSE
+      )
     )
+
+  cumulative_matrix <- cbind(
+    cumulative$high_training,
+    cumulative$director_support,
+    cumulative$high_knowledge,
+    cumulative$high_usage
+  )
+
+  cumulative$cumulative_support <- dplyr::if_else(
+    rowSums(!is.na(cumulative_matrix)) == 4,
+    rowSums(cumulative_matrix),
+    NA_real_
+  )
   cumulative_summary <- group_mean(cumulative, c("cumulative_support"), "score_q13_open_intentions")
   write_plan(cumulative_summary, "plan_cumul_formation_environnement_connaissance_usage_intentions")
 }
 
 # -----------------------------------------------------------------------------
-# E. Q7 et perceptions Q15
+# E. Perceptions — Q7, Q12 et Q15
+# -----------------------------------------------------------------------------
+# Sépare bénéfices, contraintes et risques Q15 et les relie au contexte,
+# aux pratiques et à la visibilité de la politique institutionnelle.
 # -----------------------------------------------------------------------------
 
 if ("q7_group" %in% names(df)) {
@@ -788,7 +876,10 @@ perception_models <- purrr::map_dfr(perception_scores, function(outcome) {
 write_plan(perception_models, "plan_modeles_perceptions_q15")
 
 # -----------------------------------------------------------------------------
-# F. Mots spontanés Q3 : fréquences et catégories dictionnaire transparentes
+# F. Représentations spontanées Q3 — analyse exploratoire
+# -----------------------------------------------------------------------------
+# Le dictionnaire est volontairement explicite et reproductible. Les catégories
+# non classées sont conservées afin de ne pas forcer un codage interprétatif.
 # -----------------------------------------------------------------------------
 
 q3_available <- has_rows(q3_long) && all(c("respondent_id", "word_normalized", ".weight") %in% names(q3_long))
@@ -929,7 +1020,11 @@ if (q3_available) {
 }
 
 # -----------------------------------------------------------------------------
-# G. CAH exploratoire et caractérisation des profils
+# G. Classification hiérarchique exploratoire
+# -----------------------------------------------------------------------------
+# Le nombre de classes est choisi parmi 2 à 6 par silhouette moyenne. Les classes
+# sont décrites avec les poids mais ne sont pas présentées comme une typologie
+# stable de la population des doctorants.
 # -----------------------------------------------------------------------------
 
 cah_scores <- c(
@@ -945,7 +1040,11 @@ if (length(cah_scores) >= 5) {
     dplyr::filter(dplyr::if_all(dplyr::all_of(cah_scores), ~ !is.na(.x)))
 
   if (nrow(cah_df) >= 80) {
-    x <- scale(cah_df |> dplyr::select(dplyr::all_of(cah_scores)))
+    # Les variables sont centrées-réduites avec la pondération d'enquête avant
+    # calcul des distances. La CAH elle-même reste une classification d'individus
+    # non pondérée : les poids sont ensuite réintroduits dans la caractérisation
+    # des classes. Cette analyse est donc exploratoire.
+    x <- weighted_standardize_matrix(cah_df, cah_scores, ".weight")
     dmat <- stats::dist(x)
     hc <- stats::hclust(dmat, method = "ward.D2")
     k_grid <- 2:min(6, nrow(cah_df) - 1)
@@ -981,7 +1080,10 @@ if (length(cah_scores) >= 5) {
 }
 
 # -----------------------------------------------------------------------------
-# H. Figures nouvelles destinées surtout à l'annexe
+# H. Figures complémentaires
+# -----------------------------------------------------------------------------
+# Ces figures documentent des points du plan nouvellement couverts. Elles sont
+# ajoutées au catalogue avec une note de lecture destinée à la publication.
 # -----------------------------------------------------------------------------
 
 new_figs <- list()
@@ -998,7 +1100,7 @@ if (exists("q9_overall") && has_rows(q9_overall)) {
     ggplot2::theme(plot.title = ggplot2::element_blank(), plot.subtitle = ggplot2::element_blank())
   f <- "plan_01_q9_organisateurs.png"
   safe_save(p, f, 12.5, 6.5)
-  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 1L, bloc = "Parcours de formation", titre = "Organisateurs des formations et actions", caption = "Q9, question multiréponse ; part pondérée parmi les répondants disposant d'une réponse Q9.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
+  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 1L, bloc = "Parcours de formation", titre = "Organisateurs des formations et actions", caption = "Lecture : plusieurs organismes peuvent être cités par un même répondant ; les pourcentages ne sont pas additifs.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
 }
 
 if (exists("q14_global") && has_rows(q14_global)) {
@@ -1016,7 +1118,7 @@ if (exists("q14_global") && has_rows(q14_global)) {
     ggplot2::theme(plot.title = ggplot2::element_blank(), plot.subtitle = ggplot2::element_blank())
   f <- "plan_10_q14_raisons_non_adoption.png"
   safe_save(p, f, 12.8, 7.2)
-  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Raisons déclarées de non-adoption des pratiques", caption = "Q14, question multiréponse ; part pondérée des répondants ayant déclaré au moins une raison de non-adoption.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
+  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Raisons déclarées de non-adoption des pratiques", caption = "Lecture : plusieurs raisons peuvent être citées ; chaque répondant est compté une seule fois par motif.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
 }
 
 if (exists("q15_overall") && has_rows(q15_overall)) {
@@ -1036,7 +1138,7 @@ if (exists("q15_overall") && has_rows(q15_overall)) {
     ggplot2::theme(plot.title = ggplot2::element_blank(), plot.subtitle = ggplot2::element_blank())
   f <- "plan_12_q15_accord_desaccord.png"
   safe_save(p, f, 13.2, 8.2)
-  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 5L, bloc = "Perceptions", titre = "Accord et désaccord avec les affirmations sur la science ouverte", caption = "Q15 ; parts pondérées d'accord et de désaccord pour chaque affirmation.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
+  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 5L, bloc = "Perceptions", titre = "Accord et désaccord avec les affirmations sur la science ouverte", caption = "Lecture : parts pondérées d'accord et de désaccord pour chaque affirmation Q15.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
 }
 
 if (exists("cumulative_summary") && has_rows(cumulative_summary)) {
@@ -1050,11 +1152,14 @@ if (exists("cumulative_summary") && has_rows(cumulative_summary)) {
     ggplot2::theme(plot.title = ggplot2::element_blank(), plot.subtitle = ggplot2::element_blank(), legend.position = "none")
   f <- "plan_13_cumul_et_intentions.png"
   safe_save(p, f, 10.8, 6.7)
-  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Cumul des conditions favorables et intentions", caption = "Indice descriptif combinant volume de formation, direction de thèse favorable, connaissance et usage élevés ; il ne constitue pas une mesure causale.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 3L, available = TRUE)
+  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Cumul des conditions favorables et intentions", caption = "Lecture : indice descriptif de cumul des quatre conditions ; il ne mesure pas un effet causal.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 3L, available = TRUE)
 }
 
 # -----------------------------------------------------------------------------
-# I. Matrice détaillée de couverture du plan
+# I. Matrice de couverture du plan
+# -----------------------------------------------------------------------------
+# Une ligne = un point du plan. Le statut et le nom de la sortie permettent de
+# vérifier ce qui est analysé, conditionnel, externe ou encore à confirmer.
 # -----------------------------------------------------------------------------
 
 status_if <- function(condition, yes = "Analysé", no = "Non analysé") if (isTRUE(condition)) yes else no
