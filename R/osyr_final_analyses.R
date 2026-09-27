@@ -54,7 +54,7 @@ safe_pct <- function(x, accuracy = 0.1) {
 }
 
 w_mean <- function(x, w) {
-  ok <- !is.na(x) & !is.na(w)
+  ok <- !is.na(x) & !is.na(w) & w > 0
   if (!any(ok)) return(NA_real_)
   sum(as.numeric(x[ok]) * as.numeric(w[ok]), na.rm = TRUE) / sum(as.numeric(w[ok]), na.rm = TRUE)
 }
@@ -127,7 +127,7 @@ weighted_distribution <- function(data, group_var, value_var, weight_var = ".wei
   if (!all(c(group_var, value_var, weight_var) %in% names(data))) return(tibble::tibble())
 
   data |>
-    dplyr::filter(!is.na(.data[[group_var]]), !is.na(.data[[value_var]]), !is.na(.data[[weight_var]])) |>
+    dplyr::filter(!is.na(.data[[group_var]]), !is.na(.data[[value_var]]), !is.na(.data[[weight_var]]), .data[[weight_var]] > 0) |>
     dplyr::group_by(group = .data[[group_var]], value = .data[[value_var]]) |>
     dplyr::summarise(
       n = dplyr::n(),
@@ -164,12 +164,12 @@ multiresponse_by_group <- function(long_df, group_var, label_var = "device_label
 
   denom <- long_df |>
     dplyr::distinct(respondent_id, .data[[group_var]], .data[[weight_var]]) |>
-    dplyr::filter(!is.na(.data[[group_var]])) |>
+    dplyr::filter(!is.na(.data[[group_var]]), !is.na(.data[[weight_var]]), .data[[weight_var]] > 0) |>
     dplyr::group_by(group = .data[[group_var]]) |>
     dplyr::summarise(total_weight = sum(.data[[weight_var]], na.rm = TRUE), .groups = "drop")
 
   long_df |>
-    dplyr::filter(!is.na(.data[[group_var]]), !is.na(.data[[label_var]])) |>
+    dplyr::filter(!is.na(.data[[group_var]]), !is.na(.data[[label_var]]), !is.na(.data[[weight_var]]), .data[[weight_var]] > 0) |>
     dplyr::group_by(group = .data[[group_var]], value = .data[[label_var]]) |>
     dplyr::summarise(
       n = dplyr::n_distinct(respondent_id),
@@ -198,7 +198,10 @@ if (file.exists(main_rds)) {
   stop("Base nettoyée introuvable. Lancez d'abord le script 01.")
 }
 
-if (!".weight" %in% names(df)) df$.weight <- 1
+if (!".weight" %in% names(df)) {
+  stop("La pondération .weight est absente. Elle doit provenir de l'unique colonne Poids créée par le script 01.")
+}
+df$.weight <- suppressWarnings(as.numeric(df$.weight))
 if (!"weight_none" %in% names(df)) df$weight_none <- 1
 
 if ("exposure2" %in% names(df)) df$exposure2 <- standardize_exposure(df$exposure2)
