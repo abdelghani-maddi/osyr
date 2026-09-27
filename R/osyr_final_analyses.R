@@ -348,7 +348,7 @@ if (has_rows(q8_devices_long) && "year" %in% names(q8_devices_long)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_02_dispositifs_q8_par_annee.png", 1, "Parcours de formation",
       "Types de dispositifs selon l'année de thèse",
-      "Vue détaillée des dispositifs déclarés, sans agrégation.",
+      "Lecture : part pondérée des répondants ayant cité chaque modalité Q8.",
       width = 13.5, height = 7.8, priority = 2
     )
   }
@@ -493,7 +493,7 @@ if (has_rows(q5_long) && all(c("known_well", "used") %in% names(q5_long))) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_10_q5_connaissance_usage_items.png", 2, "Connaissances",
       "Connaissance et usage des outils de science ouverte",
-      "Dumbbell chart item par item : connaissance déclarée et usage déclaré.",
+      "Lecture : la distance entre les deux points correspond à l'écart entre bonne connaissance déclarée et usage déclaré.",
       width = 13, height = 8.8, priority = 1
     )
   }
@@ -539,7 +539,7 @@ if ("exposure2" %in% names(df)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_11_scores_par_exposition.png", 2, "Connaissances",
       "Scores synthétiques selon l'exposition aux dispositifs",
-      "Vue transversale des principaux scores utilisés dans le rapport.",
+      "Lecture : scores moyens pondérés calculés sur les réponses valides dans chaque groupe d'exposition.",
       width = 12.5, height = 7.2, priority = 2
     )
   }
@@ -570,7 +570,7 @@ if ("year" %in% names(df)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_12_scores_par_annee.png", 2, "Connaissances",
       "Connaissance, usage et intentions selon l'année de thèse",
-      "Figure utile pour distinguer effet d'avancement doctoral et exposition aux dispositifs.",
+      "Lecture : évolution des scores moyens pondérés selon l'année de thèse.",
       width = 12.5, height = 6.8, priority = 2
     )
   }
@@ -927,7 +927,7 @@ if (length(profile_scores) >= 4) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_50_profils_acp_scores.png", 6, "Profils et analyses transversales",
       "Profils de répondants selon les scores de science ouverte",
-      "Analyse exploratoire destinée à repérer des configurations de connaissances, usages, intentions et perceptions.",
+      "Lecture : projection des répondants sur les deux premiers axes ; les profils sont exploratoires et ne constituent pas une typologie de population.",
       width = 11.5, height = 7.2, priority = 1
     )
 
@@ -1033,7 +1033,7 @@ if (has_rows(coverage)) {
     ), drop = TRUE) +
     ggplot2::labs(
       title = "Suivi interne de la couverture du plan de dépouillement",
-      subtitle = "Nombre de sorties graphiques disponibles par section ; indicateur de production, non destiné au rapport.",
+      subtitle = "Nombre de sorties graphiques disponibles par section ; suivi interne de production.",
       x = "Nombre de figures", y = NULL
     ) +
     osyr_theme()
