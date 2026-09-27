@@ -1,7 +1,12 @@
 # =============================================================================
 # SCRIPT 99 — DOCUMENTER L'ENVIRONNEMENT R
 # =============================================================================
-# À lancer après le workflow pour conserver la version de R et des packages.
+# RÔLE
+#   Conserver la version de R, des packages installés et l'environnement logiciel
+#   utilisé pour produire les résultats. Cette sortie participe à la traçabilité
+#   du workflow mais ne contient aucun résultat scientifique.
+#
+# À lancer après les analyses :
 #   source("99_session_info.R")
 # =============================================================================
 
