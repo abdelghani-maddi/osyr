@@ -206,7 +206,10 @@ weighted_score_by_group <- function(data, group_var, score_vars, weight_var = ".
   data |>
     dplyr::select(dplyr::all_of(c(group_var, weight_var, score_vars))) |>
     tidyr::pivot_longer(cols = dplyr::all_of(score_vars), names_to = "score", values_to = "value") |>
-    dplyr::filter(!is.na(.data[[group_var]]), !is.na(value)) |>
+    dplyr::filter(
+      !is.na(.data[[group_var]]), !is.na(value),
+      !is.na(.data[[weight_var]]), .data[[weight_var]] > 0
+    ) |>
     dplyr::group_by(group = .data[[group_var]], score) |>
     dplyr::summarise(
       n = dplyr::n(),
@@ -227,7 +230,16 @@ multiresponse_by_group <- function(long_df, group_var, label_var = "device_label
     dplyr::summarise(total_weight = sum(.data[[weight_var]], na.rm = TRUE), .groups = "drop")
 
   long_df |>
-    dplyr::filter(!is.na(.data[[group_var]]), !is.na(.data[[label_var]]), !is.na(.data[[weight_var]]), .data[[weight_var]] > 0) |>
+    dplyr::filter(
+      !is.na(.data[[group_var]]), !is.na(.data[[label_var]]),
+      !is.na(.data[[weight_var]]), .data[[weight_var]] > 0
+    ) |>
+    # Une modalité multiréponse ne doit compter qu'une fois par répondant,
+    # même si l'export contient accidentellement un doublon de slot.
+    dplyr::distinct(
+      respondent_id, .data[[group_var]], .data[[label_var]],
+      .data[[weight_var]], .keep_all = TRUE
+    ) |>
     dplyr::group_by(group = .data[[group_var]], value = .data[[label_var]]) |>
     dplyr::summarise(
       n = dplyr::n_distinct(respondent_id),
