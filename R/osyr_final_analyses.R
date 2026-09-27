@@ -804,7 +804,8 @@ if (length(profile_scores) >= 4) {
       dplyr::select(dplyr::all_of(profile_scores)) |>
       scale()
 
-    pca <- stats::prcomp(x, center = TRUE, scale. = TRUE)
+    # x est déjà centré-réduit par scale() : ne pas standardiser une seconde fois.
+    pca <- stats::prcomp(x, center = FALSE, scale. = FALSE)
     k <- min(4, max(2, floor(nrow(profile_df) / 50)))
     km <- stats::kmeans(x, centers = k, nstart = 50)
 
