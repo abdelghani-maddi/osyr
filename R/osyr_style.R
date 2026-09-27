@@ -1,13 +1,28 @@
 # =============================================================================
-# Fonctions de style et de cadrage pour la phase de production finale OSYR
+# R/osyr_style.R — CHARTE, LIBELLÉS ET MÉTADONNÉES DE PUBLICATION
+# Version : 27/09/2026
 # =============================================================================
-# Ce fichier centralise les couleurs, les libellés, les chemins et les fonctions
-# utilisées par les scripts de rapport final et de présentation finale.
+# RÔLE DANS LE WORKFLOW
+#   Ce fichier ne calcule aucun résultat statistique. Il centralise :
+#   - les chemins des dossiers de sortie ;
+#   - la palette et les règles graphiques ;
+#   - la mise en forme des tableaux Word ;
+#   - la trame des sections du rapport ;
+#   - les titres et notes de lecture destinés aux figures publiées.
 #
-# Couleurs issues du gabarit OSYR :
-# - marron : #998A5B
-# - vert principal : #7FB680
-# - beige : #FEFAD4
+# LIEN AVEC LE PLAN DE DÉPOUILLEMENT
+#   Transversal à l'ensemble du plan. Les sept blocs du registre ci-dessous
+#   reprennent l'organisation du plan de septembre 2026 :
+#   1. parcours de formation ; 2. connaissances ; 3. pratiques ;
+#   4. intentions et attitudes ; 5. perceptions ;
+#   6. profils et analyses transversales ; 7. précautions méthodologiques.
+#
+# PRINCIPE ÉDITORIAL
+#   Les figures destinées au lecteur ne portent pas de commentaires de production
+#   ("figure utile", "sortie finale", "diagnostic", etc.). Les précisions
+#   nécessaires à l'interprétation sont formulées comme notes de lecture.
+#
+# Couleurs OSYR : marron #998A5B ; vert #7FB680 ; beige #FEFAD4.
 # =============================================================================
 
 osyr_colors <- function() {
@@ -147,7 +162,7 @@ osyr_scale_color_exposure <- function(drop = TRUE) {
   ggplot2::scale_color_manual(
     values = c(
       "Aucun dispositif" = cols[["brown"]],
-      "Autoformation / autre seulement" = cols[["brown"]],
+      "Autoformation / autre seulement" = "#B6A76E",
       "Dispositif organisé" = cols[["green"]]
     ),
     drop = drop
@@ -251,7 +266,7 @@ osyr_figure_catalog <- function() {
     2, "Connaissances", "Gap connaissance-usage par famille d'objets", "17b_gap_par_famille_objet_discipline_detail.png", "final", 2,
     3, "Pratiques", "Usage des outils de science ouverte par discipline détaillée", "15b_heatmap_q5_usage_par_discipline_detail.png", "final", 1,
     3, "Pratiques", "Connaissance et usage Q5 par discipline détaillée", "16c_scores_q5_par_discipline_detail_exposition.png", "final", 2,
-    4, "Intentions et attitudes", "Robustesse des effets associés aux dispositifs", "01_robustesse_scores_pondere_non_pondere.png", "complements", 1,
+    4, "Intentions et attitudes", "Robustesse des associations avec l'exposition aux dispositifs", "01_robustesse_scores_pondere_non_pondere.png", "complements", 1,
     4, "Intentions et attitudes", "Items qui portent les écarts exposés/non exposés", "03_items_top_effets_fdr.png", "complements", 2,
     5, "Perceptions", "Écarts exposés/non exposés par discipline détaillée", "16b_scores_ecarts_par_discipline_detail_exposition.png", "final", 1,
     6, "Profils et analyses transversales", "Plus grands écarts de scores par discipline", "16d_top_ecarts_scores_discipline_detail.png", "final", 1,
@@ -282,6 +297,99 @@ build_figure_catalog <- function() {
       available = !is.na(path) & file.exists(path)
     ) |>
     dplyr::arrange(section, priorite, titre)
+}
+
+# -----------------------------------------------------------------------------
+# Notes de lecture des figures publiées
+# -----------------------------------------------------------------------------
+# Les graphiques des scripts 01/03 peuvent conserver des sous-titres utiles pour
+# le contrôle analytique. Lorsqu'une figure entre dans le rapport ou le diaporama,
+# cette fonction impose une formulation destinée au lecteur final.
+#
+# "Lecture :" explicite uniquement ce qui est nécessaire pour comprendre
+# l'indicateur, le champ ou le caractère multiréponse. Les détails de production
+# restent dans les diagnostics et ne sont pas imprimés dans le rapport.
+
+osyr_publication_caption <- function(file, current_caption = NA_character_) {
+  notes <- c(
+    "final_01_exposition_par_annee.png" =
+      "Lecture : répartition des trois profils d'exposition au sein de chaque année de thèse.",
+    "plan_01_q9_organisateurs.png" =
+      "Lecture : plusieurs organismes peuvent être cités par un même répondant ; les pourcentages ne sont pas additifs.",
+    "final_02_dispositifs_q8_par_annee.png" =
+      "Lecture : Q8 autorise plusieurs réponses ; chaque cellule indique la part pondérée des répondants ayant cité la modalité.",
+    "final_03_dispositifs_q8_par_discipline.png" =
+      "Lecture : Q8 autorise plusieurs réponses ; les pourcentages sont calculés séparément dans chaque discipline.",
+    "final_10_q5_connaissance_usage_items.png" =
+      "Lecture : la distance entre les deux points mesure l'écart entre bonne connaissance déclarée et usage déclaré.",
+    "final_11_scores_par_exposition.png" =
+      "Lecture : scores moyens pondérés calculés sur les réponses valides ; comparaison descriptive entre les deux groupes d'exposition.",
+    "final_12_scores_par_annee.png" =
+      "Lecture : scores moyens pondérés selon l'année de thèse.",
+    "final_20_pratiques_q4_items.png" =
+      "Lecture : part pondérée de réponses « oui » parmi les réponses valides à chaque item Q4.",
+    "final_21_usages_q5_par_annee.png" =
+      "Lecture : part pondérée déclarant avoir déjà utilisé l'outil ou la pratique.",
+    "15b_heatmap_q5_usage_par_discipline_detail.png" =
+      "Lecture : part pondérée déclarant avoir déjà utilisé chaque outil ou pratique, par discipline.",
+    "14b_heatmap_q5_connaissance_par_discipline_detail.png" =
+      "Lecture : part pondérée déclarant bien connaître chaque outil ou pratique, par discipline.",
+    "final_30_intentions_q13_par_exposition.png" =
+      "Lecture : part pondérée de réponses « oui » parmi les réponses valides à chaque intention.",
+    "final_31_intentions_q13_je_ne_sais_pas.png" =
+      "Lecture : part pondérée de réponses « je ne sais pas » à chaque intention.",
+    "plan_10_q14_raisons_non_adoption.png" =
+      "Lecture : plusieurs raisons peuvent être citées ; chaque répondant n'est compté qu'une fois par motif.",
+    "final_32_intentions_selon_connaissance_usage.png" =
+      "Lecture : score moyen d'intentions selon les quartiles de connaissance et d'usage.",
+    "plan_13_cumul_et_intentions.png" =
+      "Lecture : indice descriptif de cumul ; il ne mesure pas un effet causal des conditions réunies.",
+    "final_40_perceptions_q15_par_exposition.png" =
+      "Lecture : part pondérée de réponses « plutôt d'accord » ou « tout à fait d'accord ».",
+    "final_41_environnement_q12_par_exposition.png" =
+      "Lecture : parts pondérées classant chaque élément de l'environnement comme incitation ou frein.",
+    "final_42_perceptions_selon_environnement.png" =
+      "Lecture : score moyen d'accord Q15 selon les quartiles d'incitation et de frein Q12.",
+    "plan_12_q15_accord_desaccord.png" =
+      "Lecture : parts pondérées d'accord et de désaccord pour chaque affirmation Q15.",
+    "final_50_profils_acp_scores.png" =
+      "Lecture : projection descriptive sur les deux premiers axes de l'ACP ; les groupes proviennent d'une classification exploratoire.",
+    "final_51_profils_moyennes_scores.png" =
+      "Lecture : moyenne pondérée des scores dans chaque profil exploratoire.",
+    "final_52_focus_non_formes_autoformes.png" =
+      "Lecture : comparaison descriptive des scores moyens pondérés entre absence de dispositif, autoformation et dispositif organisé.",
+    "final_61_robustesse_associations.png" =
+      "Lecture : le point représente la médiane des estimations et le segment leur amplitude selon les spécifications testées.",
+    "final_62_balance_covariables.png" =
+      "Lecture : différence standardisée pondérée ; |SMD| ≥ 0,10 signale un déséquilibre de composition à examiner.",
+    "04_balance_covariables_exposes_non_exposes.png" =
+      "Lecture : différence standardisée pondérée ; |SMD| ≥ 0,10 signale un déséquilibre de composition à examiner.",
+    "01_robustesse_scores_pondere_non_pondere.png" =
+      "Lecture : estimations obtenues selon les choix de pondération et de regroupement disciplinaire.",
+    "02_heatmap_robustesse_scores.png" =
+      "Lecture : comparaison des estimations selon les principales spécifications du modèle.",
+    "03_items_top_effets_fdr.png" =
+      "Lecture : écarts ajustés entre groupes ; la correction de Benjamini-Hochberg est appliquée aux tests multiples."
+  )
+
+  if (!is.na(file) && file %in% names(notes)) return(unname(notes[[file]]))
+
+  if (is.na(current_caption) || !nzchar(current_caption)) {
+    return("Source : enquête OSYR ; résultats pondérés.")
+  }
+
+  x <- as.character(current_caption)
+  x <- stringr::str_replace(x, "^Figure issue des sorties[^.]*\\.?$", "Source : enquête OSYR ; résultats pondérés.")
+  x <- stringr::str_replace(x, "^Vue détaillée ", "Lecture : ")
+  x <- stringr::str_replace(x, "^Vue transversale ", "Lecture : ")
+  x <- stringr::str_replace(x, "^Figure utile pour ", "Lecture : ")
+  x
+}
+
+osyr_slide_note <- function(file, current_caption = NA_character_) {
+  # Le diaporama conserve une note discrète en bas de slide ; elle ne sert pas
+  # de sous-titre. Cela évite les formulations techniques sous le titre.
+  osyr_publication_caption(file, current_caption)
 }
 
 # -----------------------------------------------------------------------------
