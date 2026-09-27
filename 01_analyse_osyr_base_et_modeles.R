@@ -604,14 +604,17 @@ df <- df_raw |>
     ),
 
     q8_has_none = purrr::map_lgl(q8_codes_by_row, ~ 97 %in% .x),
-    q8_has_organized = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% 1:4)),
-    q8_has_self_or_other = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% c(5, 6, 98))),
+    # Les modalités 1 à 5 correspondent explicitement à une formation, un
+    # atelier, un séminaire ou un parcours de formation asynchrone dans la
+    # DATAMAP. Le code 6 correspond à l'autoformation et 98 à « autres ».
+    q8_has_organized = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% 1:5)),
+    q8_has_self_or_other = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% c(6, 98))),
     q8_has_presentiel = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% c(1, 3))),
     q8_has_distanciel = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% c(2, 4))),
     q8_has_async = purrr::map_lgl(q8_codes_by_row, ~ 5 %in% .x),
     q8_has_autoformation = purrr::map_lgl(q8_codes_by_row, ~ 6 %in% .x),
     q8_has_other = purrr::map_lgl(q8_codes_by_row, ~ 98 %in% .x),
-    q8_n_organized_types = purrr::map_int(q8_codes_by_row, ~ length(intersect(.x, 1:4))),
+    q8_n_organized_types = purrr::map_int(q8_codes_by_row, ~ length(intersect(.x, 1:5))),
 
     q8_inconsistent_none = q8_has_none & (q8_has_organized | q8_has_self_or_other),
 
@@ -692,8 +695,9 @@ context_vars <- c(
 # conservées ; un regroupement d'exposition est construit séparément.
 # -----------------------------------------------------------------------------
 # Cette table garde chaque modalité Q8 telle qu'elle est cochée.
-# Important : le MOOC est traité comme autoformation / autre seulement, et non
-# comme dispositif organisé, conformément à la correction méthodologique.
+# Le parcours asynchrone/MOOC (code 5) est traité comme un dispositif organisé :
+# la DATAMAP le qualifie explicitement de « parcours de formation ». L'autoformation
+# proprement dite (code 6) et « autres » (98) restent distingués.
 # La part calculée est une part de répondants ; comme Q8 est multiréponse,
 # la somme des modalités peut dépasser 100 %, sauf pour "Aucun dispositif".
 
@@ -702,8 +706,8 @@ classify_q8_device <- function(code, label) {
 
   dplyr::case_when(
     code == 97 | stringr::str_detect(label_clean, "aucun|none") ~ "Aucun dispositif",
-    code %in% c(5, 6, 98) | stringr::str_detect(label_clean, "mooc|autoformation|auto formation|autre") ~ "Autoformation / MOOC / autre",
-    code %in% 1:4 ~ "Dispositif organisé",
+    code %in% c(6, 98) | stringr::str_detect(label_clean, "autoformation|auto formation|autre") ~ "Autoformation / autre",
+    code %in% 1:5 | stringr::str_detect(label_clean, "mooc|formation|atelier|seminaire|module|stage|webinaire|presentiel|distanciel") ~ "Dispositif organisé",
     stringr::str_detect(label_clean, "formation|atelier|seminaire|module|stage|webinaire|presentiel|distanciel") ~ "Dispositif organisé",
     TRUE ~ "Autre / à vérifier"
   )
@@ -1207,7 +1211,7 @@ p_q8_devices_detail <- q8_device_distribution |>
   ggplot2::scale_fill_manual(
     values = c(
       "Dispositif organisé" = unname(osyr_palette["teal"]),
-      "Autoformation / MOOC / autre" = unname(osyr_palette["orange"]),
+      "Autoformation / autre" = unname(osyr_palette["orange"]),
       "Aucun dispositif" = unname(osyr_palette["coral"]),
       "Autre / à vérifier" = unname(osyr_palette["grey"])
     ),
