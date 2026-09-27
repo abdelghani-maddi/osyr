@@ -1,10 +1,22 @@
 # =============================================================================
-# SCRIPT 06 — GÉNÉRER LA PRÉSENTATION FINALE OSYR
-# Version 2026-09-21 v3
+# SCRIPT 06 — GÉNÉRER LA PRÉSENTATION OSYR
+# Version : 27/09/2026
 # =============================================================================
-# Présentation finale alignée sur le rapport principal.
-# Elle privilégie les messages-clés et un nombre limité de figures lisibles.
-# Les figures complémentaires restent disponibles dans l'annexe graphique Word.
+# RÔLE DANS LE WORKFLOW
+#   Étape de publication parallèle au rapport Word. La présentation relit le même
+#   catalogue de figures et les mêmes synthèses déterministes : aucun résultat
+#   n'est recalculé dans ce script.
+#
+# CORRESPONDANCE AVEC LE PLAN
+#   Une séquence de slides est produite pour chacun des sept blocs du rapport.
+#   La présentation retient au maximum deux figures par bloc afin de préserver
+#   la lisibilité ; l'annexe Word conserve les autres sorties.
+#
+# RÈGLES ÉDITORIALES
+#   - un titre de résultat, sans sous-titre technique de production ;
+#   - une note de lecture discrète au bas des slides de figure ;
+#   - mêmes intitulés, couleurs et définitions que dans le rapport Word ;
+#   - aucune figure interne de suivi du workflow.
 # =============================================================================
 
 options(
@@ -57,7 +69,9 @@ figure_catalog <- figure_catalog |>
 safe_write_csv(figure_catalog, file.path(dirs$ppt, "catalogue_figures_presentation.csv"))
 
 # -----------------------------------------------------------------------------
-# Helpers PowerPoint
+# 1. Fonctions de mise en page PowerPoint
+# -----------------------------------------------------------------------------
+# Mise en page uniquement : aucun calcul statistique n'est effectué ici.
 # -----------------------------------------------------------------------------
 
 ppt <- officer::read_pptx()
@@ -180,22 +194,38 @@ add_summary_slide <- function(ppt, title, bullets, page) {
   ppt
 }
 
-add_figure_slide <- function(ppt, title, subtitle, path, page) {
+add_figure_slide <- function(ppt, title, note, path, page) {
   ppt <- officer::add_slide(ppt, layout = layout_blank, master = master)
   ppt <- add_osyr_bar(ppt, page)
-  ppt <- add_title(ppt, title, subtitle)
+  ppt <- add_title(ppt, title)
 
   ppt <- officer::ph_with(
     ppt,
-    value = officer::external_img(path, width = 11.7, height = 5.1),
-    location = ph(left = 0.82, top = 1.75, width = 11.7, height = 5.1)
+    value = officer::external_img(path, width = 11.7, height = 5.25),
+    location = ph(left = 0.82, top = 1.35, width = 11.7, height = 5.25)
   )
+
+  if (!is.null(note) && !is.na(note) && nzchar(note)) {
+    ppt <- officer::ph_with(
+      ppt,
+      value = officer::fpar(
+        officer::ftext(
+          note,
+          officer::fp_text(font.size = 8.5, italic = TRUE, color = cols[["grey"]])
+        )
+      ),
+      location = ph(left = 0.82, top = 6.67, width = 11.5, height = 0.34)
+    )
+  }
 
   ppt
 }
 
 # -----------------------------------------------------------------------------
-# Slides
+# 2. Construction des slides
+# -----------------------------------------------------------------------------
+# Séquence commune avec le rapport : couverture, synthèse, blocs du plan,
+# figures principales et conclusion.
 # -----------------------------------------------------------------------------
 
 page <- 1
@@ -273,16 +303,12 @@ for (sec in sort(unique(plan_rapport$section))) {
 
   if (nrow(figs) > 0) {
     for (i in seq_len(nrow(figs))) {
-      subtitle <- if (!is.na(figs$caption[i]) && nzchar(figs$caption[i])) {
-        figs$caption[i]
-      } else {
-        "Source : enquête OSYR, données pondérées."
-      }
+      note <- osyr_slide_note(figs$file[i], figs$caption[i])
 
       ppt <- add_figure_slide(
         ppt,
         figs$titre[i],
-        subtitle,
+        note,
         figs$path[i],
         page
       )
@@ -296,10 +322,10 @@ ppt <- add_summary_slide(
   ppt,
   "Conclusion",
   c(
-    "Les résultats montrent des écarts persistants entre connaissance, usage et mise en pratique de la science ouverte.",
-    "L'exposition aux dispositifs est associée à plusieurs dimensions, mais ces différences doivent être lues en tenant compte de la discipline, de l'année de thèse et de la composition des groupes.",
-    "Les analyses de robustesse distinguent les résultats relativement stables de ceux qui restent sensibles aux choix de pondération ou de spécification.",
-    "Les réponses étant déclaratives, les résultats ne sont pas interprétés comme des effets causaux des dispositifs."
+    "Les principes de la science ouverte recueillent une adhésion large, mais la connaissance des outils ne se traduit pas systématiquement en usage.",
+    "La formation est associée à l'acculturation et à la mise en capacité ; les usages dépendent aussi de l'avancement doctoral, des pratiques de recherche et du contexte disciplinaire.",
+    "Les intentions sont plus élevées chez les répondants qui connaissent et utilisent déjà davantage les outils de science ouverte.",
+    "Les résultats sont déclaratifs et associatifs ; les classifications et l'analyse des mots spontanés restent exploratoires."
   ),
   page
 )
