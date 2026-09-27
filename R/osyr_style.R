@@ -1,15 +1,20 @@
 # =============================================================================
-# Fonctions de style et de cadrage pour la phase de production finale OSYR
+# SCRIPT — CHARTE, CHEMINS ET REGISTRE ÉDITORIAL OSYR
+# Version 2026-09-27
 # =============================================================================
-# Ce fichier centralise les couleurs, les libellés, les chemins et les fonctions
-# utilisées par les scripts de rapport final et de présentation finale.
+# RÔLE
+#   Centraliser les éléments communs aux livrables : palette, thème ggplot,
+#   style des tableaux, chemins de sortie, trame du rapport et catalogue des
+#   figures historiques réutilisables.
 #
-# Couleurs issues du gabarit OSYR :
-# - marron : #998A5B
-# - vert principal : #7FB680
-# - beige : #FEFAD4
+# PRINCIPE
+#   Ce fichier ne calcule aucun résultat statistique. Les libellés définis ici
+#   doivent être compréhensibles par un lecteur du rapport et ne pas reprendre
+#   le vocabulaire interne de production.
+#
+# PALETTE OSYR
+#   marron #998A5B ; vert #7FB680 ; beige #FEFAD4 ; vert sombre #2F4A35.
 # =============================================================================
-
 osyr_colors <- function() {
   c(
     brown = "#998A5B",
