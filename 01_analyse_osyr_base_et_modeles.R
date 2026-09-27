@@ -1,19 +1,31 @@
 # =============================================================================
-# SCRIPT 01 — ANALYSE PRINCIPALE OSYR
-# Version v14 — 07/07/2026
+# SCRIPT 01 — CONSTRUCTION DU SOCLE ANALYTIQUE OSYR
+# Version : 27/09/2026
+# =============================================================================
+# RÔLE DANS LE WORKFLOW
+#   Première étape analytique. Ce script lit la base brute et la DATAMAP, construit
+#   les variables utilisées dans toute la suite du workflow, produit les formats
+#   longs des batteries et génère les descriptifs de référence.
 #
-# OBJECTIF
-#   Produire une base analytique propre ET intégrer dès le socle les sorties
-#   demandées après la réunion WP2 :
-#   - conserver toutes les disciplines détaillées, pas seulement les 4 agrégées ;
-#   - récupérer robustement les libellés de disciplines depuis la datamap ;
-#   - documenter explicitement les deux niveaux de discipline ;
-#   - produire des figures pour toutes les disciplines détaillées ;
-#   - produire les formats longs nécessaires aux tests du script 03 ;
-#   - produire les premiers scores synthétiques ;
-#   - produire une distribution détaillée des dispositifs Q8, sans agrégation ;
-#   - corriger les visualisations Q8 par langue et scores par discipline ;
-#   - ajouter des visualisations complémentaires robustes et éviter les figures vides.
+# CORRESPONDANCE AVEC LE PLAN DE DÉPOUILLEMENT
+#   - Parcours de formation : Q7 à Q12, exposition Q8, organisateurs Q9,
+#     volume Q10 et évaluation Q11.
+#   - Connaissances : Q5, disciplines détaillées, écarts connaissance-usage.
+#   - Pratiques : Q4 et usage Q5.
+#   - Intentions : Q13 et préparation de Q14.
+#   - Perceptions : Q12 et Q15.
+#   - Représentations spontanées : préparation de Q3 lorsque les champs textuels
+#     sont présents dans l'export.
+#
+# PRINCIPES MÉTHODOLOGIQUES
+#   - La seule pondération d'enquête est Poids, recodée en .weight.
+#   - Les poids manquants, nuls ou négatifs sont exclus des calculs pondérés.
+#   - Les non-réponses et codes hors champ ne sont pas assimilés à des réponses
+#     négatives dans les indicateurs binaires.
+#   - Q8, Q9 et Q14 sont des questions multiréponses : leurs pourcentages ne sont
+#     pas destinés à s'additionner à 100 %.
+#   - Les regroupements analytiques complètent les résultats item par item ; ils
+#     ne remplacent jamais les modalités originales.
 #
 # ENTRÉES
 #   data/BJ30232 - BDD V2.csv
@@ -21,16 +33,16 @@
 #
 # SORTIES
 #   outputs_osyr_v2_final/
-#     ├── data_clean/
-#     ├── tables/
-#     ├── figures/
-#     ├── models/
-#     ├── text_analysis/
-#     └── diagnostics/
+#     ├── data_clean/     bases et batteries au format long
+#     ├── tables/         descriptifs et tables de synthèse
+#     ├── figures/        figures de contrôle et figures détaillées
+#     ├── models/         sorties de modèles produites à cette étape
+#     ├── text_analysis/  sorties textuelles disponibles
+#     └── diagnostics/    contrôles de dénominateurs, cohérence et qualité
 #
-# NOTE MÉTHODOLOGIQUE
-#   Les analyses sont descriptives et associatives. Les différences entre
-#   doctorants exposés et non exposés ne sont pas des effets causaux (même si on peut être tenté ;) ).
+# PORTÉE
+#   Les résultats sont descriptifs et associatifs. Aucune différence entre
+#   groupes n'est interprétée comme un effet causal d'une formation.
 # =============================================================================
 
 options(
@@ -245,7 +257,11 @@ theme_osyr <- function(base_size = 12) {
 }
 
 # -----------------------------------------------------------------------------
-# 3. Lecture base et datamap
+# 3. Lecture de la base et de la DATAMAP
+# -----------------------------------------------------------------------------
+# Étape transversale. La DATAMAP est la source de référence pour les intitulés,
+# les codes et les modalités du questionnaire. Les libellés ne sont donc pas
+# reconstruits à partir de suppositions sur le nom des colonnes.
 # -----------------------------------------------------------------------------
 
 message("Lecture de la base : ", bdd_file)
@@ -459,7 +475,12 @@ validate_q2_labels <- function(q2_labels, observed_codes) {
 }
 
 # -----------------------------------------------------------------------------
-# 4. Construction de la base analytique
+# 4. Construction de la base analytique répondant
+# -----------------------------------------------------------------------------
+# Plan : socle commun à tous les blocs.
+# Cette étape crée les variables de pondération, discipline, année, langue,
+# exposition aux dispositifs, formats de formation et scores qui seront repris
+# dans les scripts 03, osyr_final_analyses et osyr_plan_depouillement_analyses.
 # -----------------------------------------------------------------------------
 
 stopifnot("poids" %in% names(df_raw))
@@ -646,7 +667,12 @@ df <- df_raw |>
   )
 
 # -----------------------------------------------------------------------------
-# 5. Formats longs des batteries
+# 5. Mise au format long des batteries
+# -----------------------------------------------------------------------------
+# Plan : Q3, Q4, Q5, Q9, Q11, Q12, Q13, Q14 et Q15.
+# Une ligne correspond à un répondant x item (ou répondant x modalité pour les
+# questions multiréponses). Cette structure permet de calculer des dénominateurs
+# propres à chaque item et d'ajuster les modèles item par item.
 # -----------------------------------------------------------------------------
 
 context_vars <- c(
@@ -659,7 +685,11 @@ context_vars <- c(
 )
 
 # -----------------------------------------------------------------------------
-# 5bis. Dispositifs Q8 détaillés, sans agrégation
+# 5.1. Q8 — dispositifs détaillés
+# -----------------------------------------------------------------------------
+# Plan : Parcours de formation, points « types de dispositifs » et focus
+# présentiel/distanciel/autoformation. Les huit modalités de la DATAMAP sont
+# conservées ; un regroupement d'exposition est construit séparément.
 # -----------------------------------------------------------------------------
 # Cette table garde chaque modalité Q8 telle qu'elle est cochée.
 # Important : le MOOC est traité comme autoformation / autre seulement, et non
@@ -997,7 +1027,13 @@ response_denominator_diagnostics <- dplyr::bind_rows(
 write_table(response_denominator_diagnostics, "response_denominator_diagnostics", subdir = "diagnostics")
 
 # -----------------------------------------------------------------------------
-# 6. Scores synthétiques
+# 6. Construction des scores synthétiques
+# -----------------------------------------------------------------------------
+# Plan : comparaisons transversales entre formation, connaissance, pratiques,
+# intentions, environnement et perceptions.
+# Chaque score est une proportion individuelle entre 0 et 1 calculée sur les
+# items valides du répondant. Les scores facilitent les modèles mais les tables
+# item par item restent la référence pour l'interprétation substantielle.
 # -----------------------------------------------------------------------------
 
 df <- df |>
@@ -1033,7 +1069,10 @@ readr::write_csv(df, file.path(out_dir, "data_clean", "osyr_v2_corrigee_clean.cs
 saveRDS(df, file.path(out_dir, "data_clean", "osyr_v2_corrigee_clean.rds"))
 
 # -----------------------------------------------------------------------------
-# 7. Contrôles qualité et documentation des disciplines
+# 7. Contrôles de qualité et documentation
+# -----------------------------------------------------------------------------
+# Vérifications attendues avant toute interprétation : libellés de discipline,
+# dénominateurs valides, réponses Q8 contradictoires et présence de la pondération.
 # -----------------------------------------------------------------------------
 
 quality_overview <- tibble::tibble(
@@ -1081,7 +1120,10 @@ if (any(discipline_label_quality$label_is_fallback, na.rm = TRUE)) {
 }
 
 # -----------------------------------------------------------------------------
-# 8. Descriptifs pondérés
+# 8. Descriptifs pondérés de référence
+# -----------------------------------------------------------------------------
+# Plan : premiers résultats de tous les blocs. Les proportions sont calculées
+# avec .weight parmi les réponses valides de chaque indicateur.
 # -----------------------------------------------------------------------------
 
 weighted_frequency <- function(data, var, weight = ".weight") {
@@ -1160,8 +1202,8 @@ p_q8_devices_detail <- q8_device_distribution |>
     drop = TRUE
   ) +
   ggplot2::labs(
-    title = "Distribution détaillée des dispositifs déclarés",
-    subtitle = "Modalités Q8 non agrégées. Le MOOC est classé avec l'autoformation / autre.",
+    title = "Dispositifs de science ouverte déclarés",
+    subtitle = "Part pondérée des répondants ayant cité chaque modalité Q8.",
     x = "Part pondérée des répondants ayant coché la modalité",
     y = NULL,
     caption = "Question multiréponse : les pourcentages ne s'additionnent pas nécessairement à 100 %."
@@ -1205,8 +1247,8 @@ if (dplyr::n_distinct(q8_device_distribution_by_language$language_group, na.rm =
       drop = TRUE
     ) +
     ggplot2::labs(
-      title = "Dispositifs Q8 détaillés selon la langue du questionnaire",
-      subtitle = "Part des répondants de chaque groupe ayant coché chaque modalité.",
+      title = "Dispositifs déclarés selon la langue du questionnaire",
+      subtitle = "Part pondérée des répondants ayant cité chaque modalité Q8.",
       x = "Part pondérée dans chaque groupe de langue",
       y = NULL,
       caption = "Question multiréponse. La langue du questionnaire est un proxy, pas une variable d'identité."
@@ -1217,7 +1259,11 @@ if (dplyr::n_distinct(q8_device_distribution_by_language$language_group, na.rm =
 }
 
 # -----------------------------------------------------------------------------
-# 9. IC de l'exposition organisée par toutes les disciplines détaillées
+# 9. Exposition organisée par discipline détaillée avec IC
+# -----------------------------------------------------------------------------
+# Plan : Parcours de formation, comparaison disciplinaire.
+# Les intervalles de confiance documentent l'incertitude ; ils ne sont pas
+# utilisés pour classer les disciplines.
 # -----------------------------------------------------------------------------
 
 df_survey <- df |> dplyr::filter(!is.na(.weight), .weight > 0)
@@ -1243,7 +1289,10 @@ organized_by_discipline_detail_ci <- tryCatch({
 write_table(organized_by_discipline_detail_ci, "organized_exposure_by_discipline_detail_ci")
 
 # -----------------------------------------------------------------------------
-# 10. Descriptifs Q5 et scores par discipline détaillée
+# 10. Q5 et scores par discipline détaillée
+# -----------------------------------------------------------------------------
+# Plan : Connaissances et Pratiques. Cette étape décrit séparément connaissance
+# et usage, puis compare les scores synthétiques selon l'exposition.
 # -----------------------------------------------------------------------------
 
 q5_by_discipline_detail <- q5_long |>
@@ -1278,7 +1327,11 @@ score_means_by_discipline_detail <- df |>
 write_table(score_means_by_discipline_detail, "score_means_by_discipline_detail")
 
 # -----------------------------------------------------------------------------
-# 11. Belles visualisations avec toutes les disciplines
+# 11. Figures descriptives par discipline
+# -----------------------------------------------------------------------------
+# Ces figures constituent des sorties analytiques détaillées. La sélection,
+# le redimensionnement et les notes de lecture destinés au rapport sont appliqués
+# plus tard par R/osyr_figure_polish.R et 05_produire_rapport_final.R.
 # -----------------------------------------------------------------------------
 
 # 11.1 Distribution détaillée des disciplines.
@@ -1294,8 +1347,8 @@ p_disc_detail <- sample_discipline_detail |>
   ) +
   ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, min(1, max(sample_discipline_detail$pct_w, na.rm = TRUE) * 1.18))) +
   ggplot2::labs(
-    title = "Toutes les disciplines détaillées des répondants",
-    subtitle = "Répartition pondérée, sans agrégation en 4 grands domaines.",
+    title = "Répartition des répondants par discipline",
+    subtitle = "Répartition pondérée selon les dix domaines disciplinaires du questionnaire.",
     x = "Pourcentage pondéré",
     y = NULL,
     caption = "Source : enquête OSYR, pondération Poids."
@@ -1315,8 +1368,8 @@ p_exposure_detail <- cross_exposure_by_discipline_detail |>
   ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1), expand = c(0, 0)) +
   ggplot2::scale_fill_manual(values = exposure_colors, drop = TRUE) +
   ggplot2::labs(
-    title = "Exposition aux dispositifs par discipline détaillée",
-    subtitle = "Répartition pondérée dans chaque discipline, sans regroupement en 4 domaines.",
+    title = "Exposition aux dispositifs selon la discipline",
+    subtitle = "Répartition pondérée des profils d'exposition dans chaque discipline.",
     x = "Pourcentage pondéré dans la discipline",
     y = NULL
   ) +
@@ -1341,8 +1394,8 @@ if (nrow(organized_by_discipline_detail_ci) > 0) {
       ggplot2::geom_point(size = 2.8, color = osyr_palette["teal"]) +
       ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
-        title = "Part exposée à un dispositif organisé par discipline détaillée",
-        subtitle = "Estimations pondérées avec intervalles de confiance.",
+        title = "Exposition à un dispositif organisé selon la discipline",
+        subtitle = "Estimations pondérées et intervalles de confiance à 95 %.",
         x = "Part pondérée exposée",
         y = NULL,
         caption = "Les IC peuvent être larges pour les disciplines à faibles effectifs."
@@ -1566,7 +1619,10 @@ if (nrow(score_means_by_discipline_detail) > 0) {
 }
 
 # -----------------------------------------------------------------------------
-# 11bis. Visualisations complémentaires Q8 et Q5
+# 11.2. Figures complémentaires Q8 et Q5
+# -----------------------------------------------------------------------------
+# Plan : approfondissements formation / connaissances / pratiques, notamment
+# les dispositifs par discipline et les écarts connaissance-usage.
 # -----------------------------------------------------------------------------
 
 # 11bis-1. Heatmap des dispositifs Q8 par discipline détaillée.
@@ -1610,8 +1666,8 @@ if (exists("q8_devices_long") && nrow(q8_devices_long) > 0) {
         na.value = "grey90"
       ) +
       ggplot2::labs(
-        title = "Dispositifs Q8 détaillés par discipline",
-        subtitle = "Part pondérée des répondants ayant coché chaque modalité dans chaque discipline.",
+        title = "Dispositifs déclarés selon la discipline",
+        subtitle = "Part pondérée des répondants ayant cité chaque modalité Q8 dans chaque discipline.",
         x = NULL,
         y = NULL,
         fill = "Part",
@@ -1661,8 +1717,8 @@ if (exists("q8_devices_long") && nrow(q8_devices_long) > 0) {
         drop = TRUE
       ) +
       ggplot2::labs(
-        title = "MOOC et autoformation par discipline détaillée",
-        subtitle = "Focus sur les modalités que l'on ne classe pas comme dispositifs organisés.",
+        title = "Parcours asynchrones et autoformation selon la discipline",
+        subtitle = "Part pondérée des répondants ayant déclaré un MOOC ou une autoformation.",
         x = "Part pondérée des répondants",
         y = NULL
       ) +
@@ -1759,7 +1815,11 @@ if (exists("q5_by_discipline_detail") && nrow(q5_by_discipline_detail) > 0) {
 }
 
 # -----------------------------------------------------------------------------
-# 11ter. Correction optionnelle du graphique Q3 si les concepts existent
+# 11.3. Représentations spontanées Q3 — sortie conditionnelle
+# -----------------------------------------------------------------------------
+# Plan : Connaissances / représentations spontanées.
+# Cette figure n'est produite que si une table de concepts existe. Le codage
+# automatique reste exploratoire et doit être validé avant une lecture forte.
 
 # -----------------------------------------------------------------------------
 # Ce bloc n'est activé que si le script complémentaire a déjà produit la table
@@ -1810,7 +1870,10 @@ if (file.exists(q3_concept_path)) {
 }
 
 # -----------------------------------------------------------------------------
-# 12. Sortie de session et message final
+# 12. Clôture du script
+# -----------------------------------------------------------------------------
+# Les informations détaillées sur l'environnement logiciel sont exportées par
+# 99_session_info.R à la fin du workflow complet.
 # -----------------------------------------------------------------------------
 
 
