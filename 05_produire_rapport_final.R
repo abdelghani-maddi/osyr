@@ -1,14 +1,26 @@
 # =============================================================================
-# SCRIPT 05 — PRODUIRE LE RAPPORT FINAL OSYR
-# Version 2026-09-21 v5
+# SCRIPT 05 — GÉNÉRER LE RAPPORT WORD OSYR
+# Version : 27/09/2026
 # =============================================================================
-# Génère deux documents :
-#   1) un rapport principal structuré et rédigé à partir des sorties du workflow ;
-#   2) une annexe graphique contenant les figures complémentaires.
+# RÔLE DANS LE WORKFLOW
+#   Étape de publication. Ce script ne calcule aucun résultat : il lit les tables,
+#   les textes déterministes et le catalogue de figures préparés en amont.
 #
-# Le rapport principal ne reprend plus les éléments de suivi interne
-# ("couverture analytique", "points à rédiger", catalogue technique, etc.).
-# Les diagnostics restent disponibles dans outputs_osyr_rapport_final/tables/.
+# LIVRABLES
+#   1. outputs_osyr_rapport_final/rapport_final_osyr.docx
+#   2. outputs_osyr_rapport_final/annexe_graphique_osyr.docx
+#
+# CORRESPONDANCE AVEC LE PLAN
+#   Le rapport reprend les sept blocs du registre osyr_final_plan_registry().
+#   La sélection des figures privilégie les résultats nécessaires à la lecture du
+#   plan ; les diagnostics de production restent dans les CSV ou dans l'annexe.
+#
+# RÈGLES ÉDITORIALES
+#   - aucune mention de type « figure utile », « sortie finale », « à rédiger » ;
+#   - les notes sous figures sont des notes de lecture, pas des sous-titres
+#     techniques de production ;
+#   - les titres de couverture ne sont pas des styles de titre numérotés Word ;
+#   - la discussion ne produit aucune nouvelle estimation.
 # =============================================================================
 
 options(
@@ -39,7 +51,10 @@ ensure_dir(file.path(dirs$report, "tables"))
 ensure_dir(file.path(dirs$report, "figures"))
 
 # -----------------------------------------------------------------------------
-# 1. Analyses finales et catalogues
+# 1. Préparer le catalogue des résultats publiables
+# -----------------------------------------------------------------------------
+# Aucune analyse n'est calculée ici. Le catalogue relie chaque fichier graphique
+# à une section du plan, un titre, une note de lecture et une priorité.
 # -----------------------------------------------------------------------------
 
 catalog_final_path <- file.path(dirs$report, "tables", "catalogue_figures_finales.csv")
@@ -71,10 +86,7 @@ figure_catalog <- figure_catalog |>
   dplyr::mutate(
     section = as.integer(section),
     path = as.character(path),
-    caption = dplyr::case_when(
-      stringr::str_detect(caption, "Figure issue des sorties") ~ "Source : enquête OSYR, données pondérées.",
-      TRUE ~ as.character(caption)
-    ),
+    caption = purrr::map2_chr(file, caption, osyr_publication_caption),
     available = !is.na(path) & file.exists(path)
   ) |>
   dplyr::filter(available) |>
@@ -101,7 +113,10 @@ safe_write_csv(main_figures, file.path(dirs$report, "tables", "figures_rapport_p
 safe_write_csv(appendix_figures, file.path(dirs$report, "tables", "figures_annexe.csv"))
 
 # -----------------------------------------------------------------------------
-# 2. Helpers Word
+# 2. Fonctions de mise en page Word
+# -----------------------------------------------------------------------------
+# Ces fonctions gèrent les tableaux, les paragraphes, les figures et la
+# couverture. Elles ne doivent contenir aucune logique statistique.
 # -----------------------------------------------------------------------------
 
 add_section_table <- function(doc, data, max_rows = 10) {
@@ -153,29 +168,70 @@ add_figure_if_exists <- function(doc, path, title, caption = NULL) {
   )
 
   if (!is.null(caption) && !is.na(caption) && nzchar(caption)) {
-    doc <- officer::body_add_par(doc, caption, style = "Normal")
+    doc <- officer::body_add_fpar(
+      doc,
+      officer::fpar(
+        officer::ftext(
+          caption,
+          officer::fp_text(
+            font.size = 8.5,
+            italic = TRUE,
+            color = cols[["grey"]]
+          )
+        )
+      )
+    )
   }
 
   doc
 }
 
 add_cover <- function(doc) {
-  doc <- officer::body_add_par(doc, "OSYR", style = "heading 1")
-  doc <- officer::body_add_par(doc, "Rapport d'analyse de l'enquête auprès des doctorants", style = "heading 2")
-  doc <- officer::body_add_par(
+  # La couverture utilise des paragraphes mis en forme, et non les styles
+  # heading 1/2, afin d'éviter une numérotation automatique du type « 1. OSYR ».
+  doc <- officer::body_add_fpar(
     doc,
-    "Science ouverte, formations, connaissances, pratiques, intentions et perceptions",
-    style = "Normal"
+    officer::fpar(
+      officer::ftext(
+        "OSYR",
+        officer::fp_text(font.size = 30, bold = TRUE, color = cols[["dark_green"]])
+      )
+    )
   )
-  doc <- officer::body_add_par(
+  doc <- officer::body_add_fpar(
     doc,
-    paste0("Version générée le ", format(Sys.Date(), "%d/%m/%Y")),
-    style = "Normal"
+    officer::fpar(
+      officer::ftext(
+        "Rapport d'analyse de l'enquête auprès des doctorants",
+        officer::fp_text(font.size = 20, bold = TRUE, color = cols[["black"]])
+      )
+    )
+  )
+  doc <- officer::body_add_fpar(
+    doc,
+    officer::fpar(
+      officer::ftext(
+        "Science ouverte, formations, connaissances, pratiques, intentions et perceptions",
+        officer::fp_text(font.size = 12.5, color = cols[["grey"]])
+      )
+    )
+  )
+  doc <- officer::body_add_fpar(
+    doc,
+    officer::fpar(
+      officer::ftext(
+        paste0("Version du ", format(Sys.Date(), "%d/%m/%Y")),
+        officer::fp_text(font.size = 10.5, color = cols[["grey"]])
+      )
+    )
   )
   doc <- officer::body_add_par(doc, " ", style = "Normal")
   doc <- officer::body_add_par(
     doc,
-    "Ce document présente les résultats issus du plan de dépouillement final. Les analyses détaillées et les diagnostics méthodologiques sont conservés dans les sorties du workflow et dans l'annexe graphique.",
+    paste(
+      "Le rapport présente les résultats de l'enquête OSYR selon le plan de dépouillement de septembre 2026.",
+      "Les tableaux détaillés, diagnostics de robustesse et figures complémentaires restent disponibles dans les sorties du workflow et dans l'annexe graphique."
+    ),
     style = "Normal"
   )
   officer::body_add_break(doc)
@@ -183,6 +239,9 @@ add_cover <- function(doc) {
 
 # -----------------------------------------------------------------------------
 # 3. Rapport principal
+# -----------------------------------------------------------------------------
+# Ordre : couverture, résumé exécutif, méthode, sept blocs de résultats,
+# discussion et conclusion.
 # -----------------------------------------------------------------------------
 
 doc <- officer::read_docx()
@@ -235,7 +294,7 @@ doc <- officer::body_add_par(
   doc,
   paste(
     "Les descriptifs sont complétés par des comparaisons selon l'année de thèse, la discipline, la langue du questionnaire et l'exposition aux dispositifs.",
-    "Les modèles pondérés utilisent un design sans grappes déclarées (ids = 1) et des régressions linéaires ou linéaires de probabilité selon la nature de la variable.",
+    "Les modèles pondérés utilisent un design sans grappes déclarées (ids = 1). Les scores sont analysés par régression linéaire ; les indicateurs binaires par modèle linéaire de probabilité lorsqu'un écart en points est recherché ; les modèles spécifiques de présence des dispositifs Q8 sont logistiques et restitués en odds ratios.",
     "Les modèles centraux ajustent au minimum sur l'année de thèse, la discipline et la langue ; des modèles élargis introduisent également les pratiques de recherche, l'environnement et les perceptions lorsque ces variables répondent à la question étudiée.",
     "Les observations incomplètes sur les variables d'un modèle sont exclues de ce modèle ; l'effectif utilisé est reporté avec les résultats."
   ),
@@ -259,7 +318,8 @@ doc <- officer::body_add_par(
   doc,
   paste(
     "Les analyses de profils, l'ACP, le k-means, la classification hiérarchique et l'analyse lexicale sont exploratoires.",
-    "Elles servent à décrire des configurations de réponses et ne définissent pas des catégories stables de doctorants.",
+    "L'ACP utilise la pondération dans le centrage, la standardisation et la covariance ; les classifications restent des regroupements exploratoires d'individus et sont caractérisées ensuite avec les poids.",
+    "Ces analyses servent à décrire des configurations de réponses et ne définissent pas des catégories stables de doctorants.",
     "Le dictionnaire utilisé pour les mots spontanés Q3 reste un outil de classement provisoire tant qu'une validation manuelle n'a pas été menée."
   ),
   style = "Normal"
@@ -323,7 +383,10 @@ out_docx <- file.path(dirs$report, "rapport_final_osyr.docx")
 print(doc, target = out_docx)
 
 # -----------------------------------------------------------------------------
-# 4. Annexe graphique séparée
+# 4. Annexe graphique
+# -----------------------------------------------------------------------------
+# L'annexe conserve les figures non retenues dans le corps principal sans
+# transformer les diagnostics internes en conclusions scientifiques.
 # -----------------------------------------------------------------------------
 
 annex <- officer::read_docx()
