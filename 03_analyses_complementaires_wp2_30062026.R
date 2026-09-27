@@ -1,24 +1,41 @@
 # =============================================================================
-# SCRIPT 03 — ANALYSES COMPLÉMENTAIRES OSYR
-# Version v12.1 — 07/07/2026
+# SCRIPT 03 — TESTS, MODÈLES AJUSTÉS ET ANALYSES DE ROBUSTESSE
+# Version : 27/09/2026
+# =============================================================================
+# RÔLE DANS LE WORKFLOW
+#   Deuxième étape analytique. Ce script part du socle produit par le script 01
+#   et évalue la robustesse des écarts observés entre profils d'exposition.
 #
-# OBJECTIF
-#   Compléter le script 01 par une couche de tests, robustesse et visualisations :
-#   - comparer avec et sans pondération ;
-#   - comparer discipline détaillée vs discipline agrégée ;
-#   - tester les écarts item par item avec intervalles de confiance ;
-#   - ajouter une correction FDR pour éviter la surinterprétation des nombreux tests ;
-#   - produire des synthèses interprétables plutôt qu'un empilement de coefficients ;
-#   - intégrer les nouvelles sorties du script 01 v14 : dispositifs Q8 détaillés,
-#     MOOC/autoformation, gaps connaissance-usage, disciplines détaillées ;
-#   - générer un export Excel consolidé, plus facile à partager ;
-#   - corriger la fonction FDR pour les modèles Q8, dont les colonnes IC sont nommées *_approx.
+# CORRESPONDANCE AVEC LE PLAN DE DÉPOUILLEMENT
+#   - Parcours de formation : robustesse des écarts selon exposition, discipline
+#     et langue du questionnaire ; analyses détaillées de Q8.
+#   - Connaissances / pratiques / intentions / perceptions : modèles ajustés
+#     sur les scores et modèles item par item.
+#   - Précautions méthodologiques : comparaison pondéré/non pondéré, discipline
+#     détaillée/agrégée, correction FDR et balance des covariables.
+#
+# PRINCIPES MÉTHODOLOGIQUES
+#   - .weight est la seule pondération d'enquête ; weight_none = 1 sert uniquement
+#     à reproduire un scénario non pondéré.
+#   - Les modèles principaux sont associatifs. Les ajustements réduisent certains
+#     déséquilibres observés mais ne constituent pas une identification causale.
+#   - Les nombreux tests item par item sont accompagnés d'une correction de
+#     Benjamini-Hochberg.
+#   - Les modèles binaires Q5/Q12/Q13/Q15 sont des modèles linéaires de
+#     probabilité lorsqu'ils servent à exprimer les écarts en points.
+#   - Les modèles logistiques spécifiques à Q8 sont interprétés en odds ratios,
+#     et non en pseudo-points de pourcentage.
 #
 # PRÉREQUIS
-#   source("01_analyse_osyr_base_et_modeles.R")
+#   Le script 01 doit avoir été exécuté dans la même version du workflow.
 #
 # SORTIES
 #   outputs_osyr_v2_complements_30062026/
+#     ├── tables/       synthèses lisibles
+#     ├── models/       coefficients détaillés
+#     ├── methodology/  diagnostics de pondération et de balance
+#     ├── figures/      figures de robustesse et contrôles
+#     └── exports/      classeur consolidé
 # =============================================================================
 
 options(
@@ -316,7 +333,10 @@ add_fdr <- function(data, group_vars = c("outcome_label"),
 }
 
 # -----------------------------------------------------------------------------
-# 3. Lecture des sorties du script 01
+# 3. Lecture et validation des sorties du script 01
+# -----------------------------------------------------------------------------
+# Cette étape vérifie que les variables et formats longs nécessaires aux modèles
+# sont présents avant d'exécuter les comparaisons du plan.
 # -----------------------------------------------------------------------------
 
 rds_path <- file.path(main_data, "osyr_v2_corrigee_clean.rds")
@@ -388,7 +408,10 @@ if (any(discipline_label_quality_runtime$label_is_fallback, na.rm = TRUE)) {
 }
 
 # -----------------------------------------------------------------------------
-# 4. Registre méthodologique, variables et couverture analytique
+# 4. Registre méthodologique et couverture des variables
+# -----------------------------------------------------------------------------
+# Plan : précautions méthodologiques. Le registre documente la variable source,
+# son rôle analytique et les sorties dans lesquelles elle intervient.
 # -----------------------------------------------------------------------------
 
 analysis_registry <- tibble::tribble(
@@ -407,7 +430,10 @@ analysis_registry <- tibble::tribble(
 save_method(analysis_registry, "analysis_registry_v12")
 
 # -----------------------------------------------------------------------------
-# 5. Registre des tests et variables de pondération
+# 5. Scénarios de pondération et registre des tests
+# -----------------------------------------------------------------------------
+# Plan : tests de sensibilité. Deux scénarios seulement sont comparés :
+# analyse non pondérée (constante 1) et analyse pondérée avec Poids/.weight.
 # -----------------------------------------------------------------------------
 
 # Il n'existe qu'une variable de pondération dans la BDD : Poids.
@@ -462,7 +488,10 @@ score_labels <- tibble::tribble(
 core_outcomes <- score_labels$outcome
 
 # -----------------------------------------------------------------------------
-# 6. Modèles formels scores : avec/sans pondération, discipline détaillée/agrégée
+# 6. Modèles sur les scores synthétiques
+# -----------------------------------------------------------------------------
+# Plan : comparer les résultats selon pondération et niveau de regroupement
+# disciplinaire. Les coefficients d'exposition sont exprimés en points de score.
 # -----------------------------------------------------------------------------
 
 fit_one_model <- function(data, outcome, outcome_label, weight_var, discipline_level = "detail") {
@@ -562,7 +591,11 @@ score_robustness_summary <- score_weighted_unweighted_tests |>
 save_table(score_robustness_summary, "score_robustness_summary")
 
 # -----------------------------------------------------------------------------
-# 7. Tests item par item avec/sans pondération + FDR
+# 7. Modèles item par item et correction FDR
+# -----------------------------------------------------------------------------
+# Plan : identifier les items qui portent les écarts observés, sans sélectionner
+# uniquement les résultats les plus favorables. Les tests sont ajustés pour
+# multiplicité au sein de chaque bloc analytique.
 # -----------------------------------------------------------------------------
 
 fit_item_models <- function(long_df, outcome, bloc_label, weight_vars, discipline_level = "detail") {
@@ -654,7 +687,11 @@ item_tests_summary <- item_tests |>
 save_table(item_tests_summary, "item_tests_top15_by_bloc")
 
 # -----------------------------------------------------------------------------
-# 8. Balance des covariables exposés / non exposés
+# 8. Balance des covariables entre exposés et non exposés
+# -----------------------------------------------------------------------------
+# Plan : précautions méthodologiques. Les différences standardisées pondérées
+# servent à documenter la composition initiale des groupes. Elles ne sont pas
+# un test de causalité et ne remplacent pas les modèles ajustés.
 # -----------------------------------------------------------------------------
 
 weighted_var <- function(x, w) {
@@ -747,7 +784,10 @@ covariate_balance <- covariate_balance |>
 save_method(covariate_balance, "covariate_balance_exposed_nonexposed")
 
 # -----------------------------------------------------------------------------
-# 9. Analyses complémentaires avec sorties du script 01 v14
+# 9. Analyses ciblées demandées par le plan
+# -----------------------------------------------------------------------------
+# Cette section approfondit les différences disciplinaires, Q8 et le gap
+# connaissance-usage à partir des tables produites par le script 01.
 # -----------------------------------------------------------------------------
 
 q5_by_discipline_detail <- read_csv_safe(file.path(main_tables, "q5_by_discipline_detail.csv"))
@@ -887,7 +927,10 @@ if (has_rows(q5_by_discipline_detail)) {
 save_table(q5_gap_interpretive_summary, "q5_gap_interpretive_summary")
 
 # -----------------------------------------------------------------------------
-# 10. Visualisations enrichies
+# 10. Figures de robustesse et diagnostics
+# -----------------------------------------------------------------------------
+# Ces figures sont d'abord des sorties analytiques. Les versions destinées au
+# rapport sont sélectionnées et reformulées dans la couche de publication.
 # -----------------------------------------------------------------------------
 
 # 10.1 Coefficient plot score : scénario pondération / discipline.
@@ -1278,7 +1321,10 @@ if (has_rows(q8_device_models_summary)) {
 }
 
 # -----------------------------------------------------------------------------
-# 11. Synthèse automatique des résultats de tests
+# 11. Synthèse tabulaire des tests
+# -----------------------------------------------------------------------------
+# Prépare une lecture structurée des signes, amplitudes, intervalles de confiance
+# et résultats FDR pour la rédaction du rapport.
 # -----------------------------------------------------------------------------
 
 test_summary <- score_weighted_unweighted_tests |>
@@ -1326,7 +1372,10 @@ interpretive_findings_for_report <- score_robustness_summary |>
 save_table(interpretive_findings_for_report, "interpretive_findings_for_report")
 
 # -----------------------------------------------------------------------------
-# 12. Export Excel consolidé
+# 12. Export consolidé des analyses complémentaires
+# -----------------------------------------------------------------------------
+# Le classeur rassemble tables de tests, méthodologie et diagnostics afin de
+# permettre une vérification indépendante des résultats.
 # -----------------------------------------------------------------------------
 
 if (requireNamespace("openxlsx", quietly = TRUE)) {
@@ -1370,7 +1419,9 @@ if (requireNamespace("openxlsx", quietly = TRUE)) {
 }
 
 # -----------------------------------------------------------------------------
-# 13. README des sorties du script 03
+# 13. Documentation des sorties
+# -----------------------------------------------------------------------------
+# Génère la documentation technique du dossier d'analyses complémentaires.
 # -----------------------------------------------------------------------------
 
 readme <- c(
