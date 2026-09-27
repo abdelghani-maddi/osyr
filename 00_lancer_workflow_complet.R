@@ -1,15 +1,29 @@
 # =============================================================================
-# SCRIPT 00 — LANCER LE WORKFLOW COMPLET OSYR
-# Version production finale — 27/09/2026 v4
+# SCRIPT 00 — ORCHESTRER LE WORKFLOW OSYR
+# Version : 27/09/2026
 # =============================================================================
-# Point d'entrée recommandé.
-# Le workflow distingue explicitement :
-#   1. analyses principales ;
-#   2. analyses complémentaires ;
-#   3. analyses de production finale ;
-#   4. vérification et compléments du plan de dépouillement ;
-#   5. polissage graphique des figures destinées aux livrables ;
-#   6. génération du rapport et de la présentation.
+# POINT D'ENTRÉE
+#   source("00_lancer_workflow_complet.R")
+#
+# ORDRE DES ÉTAPES
+#   1. 01_analyse_osyr_base_et_modeles.R
+#      Socle analytique : nettoyage, variables, batteries longues, scores,
+#      descriptifs et diagnostics de base.
+#   2. 03_analyses_complementaires_wp2_30062026.R
+#      Modèles ajustés, tests item par item, FDR, balance et robustesse.
+#   3. R/osyr_final_analyses.R
+#      Synthèses directement utiles aux livrables.
+#   4. R/osyr_plan_depouillement_analyses.R
+#      Vérification point par point du plan de septembre 2026 et analyses
+#      complémentaires encore nécessaires.
+#   5. R/osyr_figure_polish.R
+#      Régénération des figures destinées au lecteur, sans recalcul statistique.
+#   6. 05_produire_rapport_final.R / 06_generer_presentation_finale.R
+#      Publication Word et PowerPoint à partir des mêmes résultats.
+#   7. 99_session_info.R
+#      Trace de l'environnement R et des versions de packages.
+#
+# Les scripts 02 et 04 sont historiques et désactivés par défaut.
 # =============================================================================
 
 options(
@@ -20,7 +34,11 @@ options(
 )
 
 # -----------------------------------------------------------------------------
-# Options
+# Options d'exécution
+# -----------------------------------------------------------------------------
+# TRUE exécute l'étape ; FALSE la saute. Pour une production finale cohérente
+# après modification d'une variable, d'un dénominateur ou d'une méthode, laisser
+# toutes les étapes actives à l'exception des scripts historiques 02 et 04.
 # -----------------------------------------------------------------------------
 
 RUN_01_ANALYSE_PRINCIPALE       <- TRUE
@@ -35,7 +53,10 @@ RUN_06_PRESENTATION_FINALE      <- TRUE
 RUN_99_SESSION_INFO             <- TRUE
 
 # -----------------------------------------------------------------------------
-# Vérification des données
+# Vérification des fichiers d'entrée
+# -----------------------------------------------------------------------------
+# La base et la DATAMAP sont nécessaires au script 01. La DATAMAP fournit les
+# modalités et codes de référence utilisés pour construire les indicateurs.
 # -----------------------------------------------------------------------------
 
 required_data <- c(
@@ -65,6 +86,10 @@ run_script <- function(path) {
 # -----------------------------------------------------------------------------
 # Exécution séquentielle
 # -----------------------------------------------------------------------------
+# L'ordre est contraint : chaque couche utilise les sorties de la précédente.
+# Le rapport et le diaporama doivent toujours être générés après le polissage
+# graphique, lui-même exécuté après les analyses du plan de dépouillement.
+# -----------------------------------------------------------------------------
 
 if (RUN_01_ANALYSE_PRINCIPALE) {
   run_script("01_analyse_osyr_base_et_modeles.R")
@@ -90,8 +115,8 @@ if (RUN_PLAN_DEPOUILLEMENT) {
   run_script(file.path("R", "osyr_plan_depouillement_analyses.R"))
 }
 
-# Cette étape reprend les tables calculées et régénère les figures principales
-# dans un format pensé pour le rapport A4 et le diaporama.
+# Étape de publication graphique : aucune estimation n'est recalculée ici.
+# Les tables déjà calculées sont converties en figures lisibles en A4 et en slide.
 if (RUN_FIGURE_POLISH) {
   run_script(file.path("R", "osyr_figure_polish.R"))
 }
@@ -118,3 +143,9 @@ message("   - annexe_graphique_osyr.docx")
 message(" - outputs_osyr_presentation_finale/")
 message("   - presentation_finale_osyr.pptx")
 message(" - outputs_osyr_v2_session/")
+message("")
+message("Contrôles utiles :")
+message(" - outputs_osyr_v2_final/diagnostics/response_denominator_diagnostics.csv")
+message(" - outputs_osyr_v2_final/diagnostics/q8_exposure_consistency.csv")
+message(" - outputs_osyr_rapport_final/tables/couverture_plan_depouillement_detaillee.csv")
+message(" - outputs_osyr_v2_complements_30062026/methodology/covariate_balance_exposed_nonexposed.csv")
