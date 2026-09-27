@@ -511,10 +511,14 @@ if (has_rows(q5_long) && all(c("known_well", "used") %in% names(q5_long))) {
   }
 }
 
+# Q15 n'est pas résumé par un score d'accord unique dans les analyses
+# transversales : les affirmations positives et négatives seraient alors
+# mélangées. On conserve trois dimensions interprétables construites au script 01.
 score_vars <- c(
   "score_q5_known_well", "score_q5_used", "score_q4_practices_research",
   "score_q13_open_intentions", "score_q13_dont_know",
-  "score_q12_incitation", "score_q12_frein", "score_q15_agreement"
+  "score_q12_incitation", "score_q12_frein",
+  "score_q15_benefits", "score_q15_constraints", "score_q15_risks"
 )
 score_labels <- c(
   score_q5_known_well = "Connaissance Q5",
@@ -524,7 +528,9 @@ score_labels <- c(
   score_q13_dont_know = "NSP Q13",
   score_q12_incitation = "Incitation Q12",
   score_q12_frein = "Frein Q12",
-  score_q15_agreement = "Accord Q15"
+  score_q15_benefits = "Bénéfices Q15",
+  score_q15_constraints = "Contraintes Q15",
+  score_q15_risks = "Risques Q15"
 )
 
 if ("exposure2" %in% names(df)) {
