@@ -656,11 +656,110 @@ report_section_intro <- function(section, plan_row) {
 }
 
 executive_summary_text <- function(plan) {
-  purrr::map_chr(plan$section, function(sec) {
-    txt <- section_summary_text(sec)
-    if (length(txt) == 0) return(NA_character_)
-    paste0(plan$bloc[plan$section == sec][1], " — ", txt[1])
-  }) |>
-    stats::na.omit() |>
-    as.character()
+  out <- character()
+
+  exposure <- report_read_table("plan_formation_exposition_globale")
+  if (nrow(exposure) > 0 && all(c("exposure3", "pct_w") %in% names(exposure))) {
+    org <- exposure |> dplyr::filter(exposure3 == "Dispositif organisé") |> dplyr::slice(1)
+    self <- exposure |> dplyr::filter(exposure3 == "Autoformation / autre seulement") |> dplyr::slice(1)
+    if (nrow(org) == 1 && nrow(self) == 1) {
+      out <- c(out, paste0(
+        "L'exposition aux dispositifs est fréquente mais prend plusieurs formes : ",
+        fmt_pct_report(org$pct_w), " des répondants relèvent d'un dispositif organisé et ",
+        fmt_pct_report(self$pct_w), " de l'autoformation ou d'une autre modalité seulement."
+      ))
+    }
+  }
+
+  q5 <- report_read_table("connaissances_q5_items_gap")
+  if (nrow(q5) > 0) {
+    high <- q5 |> dplyr::arrange(dplyr::desc(pct_known_w)) |> dplyr::slice_head(n = 1)
+    gap <- q5 |> dplyr::arrange(dplyr::desc(gap_pp)) |> dplyr::slice_head(n = 1)
+    if (nrow(high) == 1 && nrow(gap) == 1) {
+      out <- c(out, paste0(
+        "La familiarisation est forte pour certains outils installés dans les routines académiques, notamment ",
+        clean_report_label(high$item_label), " (", fmt_pct_report(high$pct_known_w),
+        " de bonne connaissance déclarée). Elle ne se convertit pas toujours en usage : le plus grand écart connaissance-usage atteint ",
+        scales::number(gap$gap_pp, accuracy = 0.1, decimal.mark = ","), " points pour ",
+        clean_report_label(gap$item_label), "."
+      ))
+    }
+  }
+
+  model <- report_read_table("plan_modele_pratiques_q5_elargi")
+  if (nrow(model) > 0) {
+    exp <- model_term_row(model, "^exposure2Dispositif organisé$")
+    q4m <- model_term_row(model, "^score_q4_practices_research$")
+    if (nrow(exp) == 1 && nrow(q4m) == 1) {
+      out <- c(out, paste0(
+        "Pour les usages Q5, le modèle élargi met davantage en évidence l'inscription dans des pratiques de recherche que la seule exposition binaire aux dispositifs : le coefficient du score Q4 est ",
+        fmt_ci_pp_report(q4m$estimate, q4m$conf.low, q4m$conf.high),
+        ", tandis que l'estimation associée au dispositif organisé est ",
+        fmt_ci_pp_report(exp$estimate, exp$conf.low, exp$conf.high), "."
+      ))
+    }
+  }
+
+  intent_u <- report_read_table("plan_intentions_selon_usage")
+  q13 <- report_read_table("intentions_q13_par_exposition")
+  if (nrow(intent_u) > 1) {
+    u <- intent_u |> dplyr::arrange(usage_quartile)
+    out <- c(out, paste0(
+      "Les intentions d'ouverture sont plus élevées parmi les répondants qui utilisent déjà davantage les outils de science ouverte : le score moyen passe de ",
+      fmt_pct_report(u$mean_w[1]), " dans le premier quartile d'usage à ",
+      fmt_pct_report(u$mean_w[nrow(u)]), " dans le quatrième."
+    ))
+  } else if (nrow(q13) > 0) {
+    out <- c(out, "Les intentions sont globalement favorables à l'ouverture des publications et de la thèse, mais plus hésitantes pour les données et le code.")
+  }
+
+  q15 <- report_read_table("plan_q15_accord_desaccord_global")
+  if (nrow(q15) > 0) {
+    top <- q15 |> dplyr::arrange(dplyr::desc(pct_agree_w)) |> dplyr::slice_head(n = 3)
+    out <- c(out, paste0(
+      "Les représentations sont largement favorables sur les bénéfices scientifiques : reproductibilité, coopération et intégrité recueillent les niveaux d'accord les plus élevés (",
+      paste(fmt_pct_report(top$pct_agree_w), collapse = ", "), "). Les différences selon l'exposition aux dispositifs restent faibles sur ces items."
+    ))
+  }
+
+  q7 <- report_read_table("plan_q7_connaissance_politique_etablissement")
+  if (nrow(q7) > 0 && all(c("q7_group", "pct_w") %in% names(q7))) {
+    dk <- q7 |> dplyr::filter(q7_group == "Je ne sais pas") |> dplyr::slice(1)
+    if (nrow(dk) == 1) {
+      out <- c(out, paste0(
+        "La visibilité institutionnelle demeure un enjeu : ",
+        fmt_pct_report(dk$pct_w), " des répondants déclarent ne pas savoir si leur établissement dispose d'une politique ou de directives en matière de science ouverte."
+      ))
+    }
+  }
+
+  out
+}
+
+discussion_summary_text <- function() {
+  c(
+    paste(
+      "Pris ensemble, les résultats décrivent moins une opposition entre doctorants « favorables » et « défavorables » à la science ouverte qu'un continuum d'acculturation et de mise en pratique.",
+      "Les bénéfices scientifiques sont largement reconnus, tandis que la maîtrise des instruments plus techniques - gestion des données, archivage du code, protocoles ou registres - reste plus inégale."
+    ),
+    paste(
+      "La formation est associée à plusieurs dimensions de cette acculturation, mais son rôle n'est pas réductible au simple fait d'avoir été exposé ou non à un dispositif.",
+      "Les analyses par volume, par format et par profil d'autoformation montrent des trajectoires différenciées ; les modèles ajustés invitent à tenir compte simultanément de l'avancement dans le doctorat, de la discipline, des pratiques de recherche déjà engagées et du contexte institutionnel."
+    ),
+    paste(
+      "Le passage des dispositions aux pratiques apparaît comme un enjeu central.",
+      "La connaissance des outils est fortement corrélée à leur usage, mais les écarts item par item demeurent substantiels ; les intentions sont elles-mêmes plus élevées chez les répondants qui connaissent, utilisent et pratiquent déjà davantage.",
+      "L'enjeu n'est donc pas uniquement de convaincre de l'intérêt de l'ouverture, mais aussi de rendre les pratiques réalisables dans les situations concrètes de recherche."
+    ),
+    paste(
+      "Les analyses de perceptions vont dans le même sens.",
+      "Les jugements positifs sur la reproductibilité, la coopération ou l'intégrité sont largement partagés et varient peu selon l'exposition aux dispositifs.",
+      "En revanche, les contraintes et les bénéfices perçus sont davantage liés à l'environnement de recherche et aux usages effectifs, ce qui souligne le rôle des conditions organisationnelles."
+    ),
+    paste(
+      "Ces résultats doivent rester interprétés comme des associations observées dans une enquête déclarative.",
+      "La pondération corrige la composition selon le schéma fourni, mais elle ne supprime ni l'auto-sélection dans les formations ni les facteurs non observés.",
+      "Les analyses de profils et de mots spontanés sont exploratoires et servent surtout à formuler des hypothèses pour des analyses ou enquêtes ultérieures."
+    )
+  )
 }
