@@ -321,7 +321,7 @@ section_summary_text <- function(section) {
         out <- c(out, paste0(
           "Le score de pratiques de recherche Q4 est, en revanche, fortement associé à l'usage Q5 : un écart d'une unité sur ce score compris entre 0 et 1 correspond à ",
           fmt_ci_pp_report(q4m$estimate, q4m$conf.low, q4m$conf.high),
-          " dans le modèle. Cela suggère que l'inscription effective dans des activités de recherche est un déterminant descriptif majeur des usages déclarés."
+          " dans le modèle. L'inscription effective dans des activités de recherche est donc fortement associée aux usages déclarés."
         ))
       }
     }
@@ -473,7 +473,7 @@ section_summary_text <- function(section) {
         out <- c(out, paste0(
           "Les contraintes institutionnelles ou économiques perçues sont, elles, fortement liées au score de frein Q12 : ",
           fmt_ci_pp_report(constr_frein$estimate, constr_frein$conf.low, constr_frein$conf.high),
-          ". Les perceptions apparaissent ainsi structurées par l'expérience du contexte de recherche davantage que par la seule exposition aux dispositifs."
+          ". Ces résultats montrent une association plus marquée avec l'expérience du contexte de recherche qu'avec la seule exposition aux dispositifs."
         ))
       }
     }
@@ -786,7 +786,7 @@ discussion_summary_text <- function() {
     paste(
       "Les analyses de perceptions vont dans le même sens.",
       "Les jugements positifs sur la reproductibilité, la coopération ou l'intégrité sont largement partagés et varient peu selon l'exposition aux dispositifs.",
-      "En revanche, les contraintes et les bénéfices perçus sont davantage liés à l'environnement de recherche et aux usages effectifs, ce qui souligne le rôle des conditions organisationnelles."
+      "En revanche, les contraintes et les bénéfices perçus sont davantage associés à l'environnement de recherche et aux usages effectifs, ce qui invite à tenir compte des conditions organisationnelles."
     ),
     paste(
       "Ces résultats doivent rester interprétés comme des associations observées dans une enquête déclarative.",
