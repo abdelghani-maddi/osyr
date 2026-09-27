@@ -55,7 +55,7 @@ Les analyses pondérées excluent les poids manquants, nuls ou négatifs. `weigh
 
 Les non-réponses et codes hors champ ne sont pas transformés en réponses négatives. Les proportions sont calculées parmi les réponses valides de l'indicateur concerné.
 
-Q8, Q9 et Q14 sont multiréponses : leurs pourcentages ne sont pas destinés à s'additionner à 100 %.
+Q8, Q9 et Q14 sont multiréponses : leurs pourcentages ne sont pas destinés à s'additionner à 100 %. Pour Q8, le dénominateur est limité aux répondants ayant au moins une réponse valide à la question.
 
 Q13 distingue explicitement `Oui = 1`, `Non = 2` et `Je ne sais pas = 97`.
 
