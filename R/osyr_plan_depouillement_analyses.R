@@ -827,14 +827,40 @@ if (q3_available) {
   }
 
   if (q9_available) {
-    q3_q9 <- q3_cat |>
+    q3_by_respondent <- q3_cat |>
       dplyr::select(respondent_id, word_category, .weight) |>
-      dplyr::inner_join(q9_long |> dplyr::distinct(respondent_id, organizer_label), by = "respondent_id") |>
-      dplyr::filter(!is.na(.weight), .weight > 0) |>
+      dplyr::filter(!is.na(word_category), !is.na(.weight), .weight > 0) |>
+      dplyr::distinct(respondent_id, word_category, .keep_all = TRUE)
+
+    q9_by_respondent <- q9_long |>
+      dplyr::filter(!is.na(organizer_label)) |>
+      dplyr::distinct(respondent_id, organizer_label) |>
+      dplyr::group_by(respondent_id) |>
+      dplyr::summarise(organizers = list(organizer_label), .groups = "drop")
+
+    q3_q9_pairs <- q3_by_respondent |>
+      dplyr::inner_join(q9_by_respondent, by = "respondent_id") |>
+      tidyr::unnest_longer(organizers, values_to = "organizer_label") |>
+      dplyr::distinct(respondent_id, organizer_label, word_category, .keep_all = TRUE)
+
+    q3_q9_denominators <- q3_q9_pairs |>
+      dplyr::distinct(respondent_id, organizer_label, .weight) |>
+      dplyr::group_by(organizer_label) |>
+      dplyr::summarise(total_respondent_weight = sum(.weight), .groups = "drop")
+
+    q3_q9 <- q3_q9_pairs |>
       dplyr::group_by(organizer_label, word_category) |>
-      dplyr::summarise(weighted_n = sum(.weight), n = dplyr::n(), .groups = "drop_last") |>
-      dplyr::mutate(pct_mentions_w = weighted_n / sum(weighted_n)) |>
-      dplyr::ungroup()
+      dplyr::summarise(
+        n_respondents = dplyr::n_distinct(respondent_id),
+        weighted_respondents = sum(.weight),
+        .groups = "drop"
+      ) |>
+      dplyr::left_join(q3_q9_denominators, by = "organizer_label") |>
+      dplyr::mutate(
+        pct_respondents_w = weighted_respondents / total_respondent_weight
+      ) |>
+      dplyr::arrange(organizer_label, dplyr::desc(pct_respondents_w))
+
     write_plan(q3_q9, "plan_q3_categories_par_organisateur_q9")
   }
 
