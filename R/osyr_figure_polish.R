@@ -1,10 +1,24 @@
 # =============================================================================
-# Figures destinées au rapport et à la présentation OSYR
-# Version 2026-09-27
+# R/osyr_figure_polish.R — FIGURES DE PUBLICATION
+# Version : 27/09/2026
 # =============================================================================
-# Cette étape reprend les tables calculées par le workflow. Elle ne modifie pas
-# les résultats statistiques. Les graphiques sont conçus pour rester lisibles
-# après réduction à la largeur utile d'une page Word.
+# RÔLE DANS LE WORKFLOW
+#   Cette étape intervient après tous les calculs. Elle relit exclusivement les
+#   tables produites en amont et régénère les figures destinées au rapport et au
+#   diaporama. Aucun résultat statistique n'est recalculé ici.
+#
+# CORRESPONDANCE AVEC LE PLAN
+#   Les sections 1 à 7 reprennent les blocs du plan de dépouillement. Le choix du
+#   type de graphique dépend de la question : barres pour des distributions,
+#   dumbbells pour des écarts entre deux groupes, matrices pour des croisements,
+#   forest plots pour les estimations assorties d'incertitude.
+#
+# RÈGLES DE PUBLICATION
+#   - pas de titre ou sous-titre répété dans l'image lorsque Word/PPT le porte ;
+#   - libellés lisibles à la largeur utile d'une page ;
+#   - unités explicites et cohérentes ;
+#   - notes méthodologiques placées dans le catalogue, pas dans le graphique ;
+#   - aucune figure de suivi interne dans le rapport principal.
 # =============================================================================
 
 options(
@@ -227,7 +241,10 @@ dumbbell_plot <- function(data, label_col, group_col, value_col,
 }
 
 # -----------------------------------------------------------------------------
-# 1. Parcours de formation
+# 1. Parcours de formation — Q8 à Q11
+# -----------------------------------------------------------------------------
+# Figures correspondant aux points du plan sur l'exposition, les types de
+# dispositifs, l'année de thèse et la discipline.
 # -----------------------------------------------------------------------------
 
 expo_year <- read_report_table("formation_exposition_par_annee")
@@ -280,7 +297,10 @@ if (has_rows(q8_disc) && all(c("group", "value", "pct") %in% names(q8_disc))) {
 }
 
 # -----------------------------------------------------------------------------
-# 2. Connaissances
+# 2. Connaissances — Q5
+# -----------------------------------------------------------------------------
+# Figures centrées sur la différence entre connaissance déclarée et usage,
+# puis sur les variations selon exposition, année et discipline.
 # -----------------------------------------------------------------------------
 
 q5_items <- read_report_table("connaissances_q5_items_gap")
@@ -441,7 +461,10 @@ if (has_rows(q5_disc) && all(c("discipline_detail", "item_label") %in% names(q5_
 }
 
 # -----------------------------------------------------------------------------
-# 3. Pratiques
+# 3. Pratiques — Q4 et usages Q5
+# -----------------------------------------------------------------------------
+# Les barres décrivent les pratiques Q4 ; les matrices montrent les usages Q5
+# selon l'année ou la discipline.
 # -----------------------------------------------------------------------------
 
 q4 <- read_report_table("pratiques_q4_items")
@@ -490,7 +513,10 @@ if (has_rows(q5_year) && all(c("year", "item_label", "pct_used_w") %in% names(q5
 }
 
 # -----------------------------------------------------------------------------
-# 4. Intentions et attitudes
+# 4. Intentions et attitudes — Q13/Q14
+# -----------------------------------------------------------------------------
+# Comparaison des réponses oui / je ne sais pas et croisement avec connaissance
+# et usage. Q14 est ajouté par la couche plan lorsque disponible.
 # -----------------------------------------------------------------------------
 
 q13 <- read_report_table("intentions_q13_par_exposition")
@@ -526,7 +552,10 @@ if (has_rows(intent_grid) && all(c("knowledge_band", "usage_band", "intentions_w
 }
 
 # -----------------------------------------------------------------------------
-# 5. Perceptions
+# 5. Perceptions — Q12/Q15
+# -----------------------------------------------------------------------------
+# Figures d'accord, d'incitation et de frein. Les dimensions Q15 restent
+# séparées dans les analyses ; les graphiques item par item conservent les libellés.
 # -----------------------------------------------------------------------------
 
 q15 <- read_report_table("perceptions_q15_par_exposition")
@@ -593,6 +622,9 @@ if (has_rows(env_grid) && all(c("incitation_band", "frein_band", "agreement_w") 
 
 # -----------------------------------------------------------------------------
 # 6. Profils et analyses transversales
+# -----------------------------------------------------------------------------
+# Restitutions exploratoires de l'ACP/classification et comparaison du groupe
+# autoformé avec les deux groupes de référence.
 # -----------------------------------------------------------------------------
 
 profile_coord <- read_report_table("profils_coordonnees")
@@ -663,6 +695,9 @@ if (has_rows(auto) && all(c("exposure3", "score_label", "mean_w") %in% names(aut
 
 # -----------------------------------------------------------------------------
 # 7. Robustesse et composition des groupes
+# -----------------------------------------------------------------------------
+# Forest plot des analyses de sensibilité et balance pondérée des covariables.
+# Ces figures documentent l'incertitude et les limites d'interprétation.
 # -----------------------------------------------------------------------------
 
 robust <- read_complement_table("score_robustness_summary")
@@ -742,7 +777,7 @@ if (has_rows(balance) && all(c("covariate", "modality", "standardized_difference
     ggplot2::geom_col(width = 0.62) +
     ggplot2::scale_fill_manual(values = bal_cols) +
     ggplot2::labs(
-      x = "Différence : exposés - non exposés",
+      x = "Différence standardisée pondérée (SMD)",
       y = NULL, fill = NULL
     ) +
     clean_plot_theme(base_size = 13.2)
@@ -751,7 +786,10 @@ if (has_rows(balance) && all(c("covariate", "modality", "standardized_difference
 }
 
 # -----------------------------------------------------------------------------
-# Catalogue : la figure de couverture reste un diagnostic interne.
+# Mise à jour du catalogue de publication
+# -----------------------------------------------------------------------------
+# La figure de couverture du plan reste une sortie de suivi interne. Les notes
+# de lecture finales sont centralisées dans osyr_publication_caption().
 # -----------------------------------------------------------------------------
 
 catalog_path <- file.path(tab_dir, "catalogue_figures_finales.csv")
@@ -769,8 +807,8 @@ if (file.exists(catalog_path)) {
           "Composition des groupes exposés et non exposés"
         ),
         caption = c(
-          "Médiane et amplitude des estimations obtenues selon les principales spécifications.",
-          "Différences de composition pondérées entre répondants exposés et non exposés ; les seuils à 0,10 et 0,20 servent de repères descriptifs."
+          osyr_publication_caption("final_61_robustesse_associations.png"),
+          osyr_publication_caption("final_62_balance_covariables.png")
         ),
         file = c("final_61_robustesse_associations.png", "final_62_balance_covariables.png"),
         path = c(
@@ -786,7 +824,8 @@ if (file.exists(catalog_path)) {
       )
     ) |>
     dplyr::mutate(
-      priorite = dplyr::if_else(file == "final_60_couverture_plan_depouillement.png", 99L, as.integer(priorite))
+      priorite = dplyr::if_else(file == "final_60_couverture_plan_depouillement.png", 99L, as.integer(priorite)),
+      caption = purrr::map2_chr(file, caption, osyr_publication_caption)
     ) |>
     dplyr::arrange(section, priorite, titre)
 
