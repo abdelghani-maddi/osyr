@@ -1545,8 +1545,8 @@ if (nrow(score_means_by_discipline_detail) > 0) {
         na.value = "grey90"
       ) +
       ggplot2::labs(
-        title = "Écarts exposés / non exposés par discipline détaillée",
-        subtitle = "Différence de score moyen pondéré : dispositif organisé moins aucun dispositif.",
+        title = "Écarts associés à l'exposition selon la discipline",
+        subtitle = "Différence de score moyen pondéré entre dispositif organisé et absence de dispositif.",
         x = NULL,
         y = NULL,
         fill = "Écart",
@@ -1626,7 +1626,7 @@ if (nrow(score_means_by_discipline_detail) > 0) {
       ) +
       ggplot2::scale_x_continuous(labels = function(x) paste0(x, " pts")) +
       ggplot2::labs(
-        title = "Plus grands écarts exposés / non exposés",
+        title = "Principaux écarts associés à l'exposition",
         subtitle = "Écarts absolus les plus importants entre disciplines pour chaque indicateur.",
         x = "Écart en points de pourcentage",
         y = NULL,
@@ -1781,8 +1781,8 @@ if (exists("q5_by_discipline_detail") && nrow(q5_by_discipline_detail) > 0) {
         limits = c(0, safe_max_pct(q5_gap_by_discipline$gap_pp / 100, multiplier = 1.20, floor = 0.05, ceiling = 1) * 100)
       ) +
       ggplot2::labs(
-        title = "Gap connaissance-usage par discipline détaillée",
-        subtitle = "Écart moyen entre notions bien connues et outils déjà utilisés.",
+        title = "Écart connaissance-usage selon la discipline",
+        subtitle = "Différence moyenne entre bonne connaissance déclarée et usage déclaré.",
         x = "Écart moyen en points de pourcentage",
         y = NULL
       ) +
@@ -1820,8 +1820,8 @@ if (exists("q5_by_discipline_detail") && nrow(q5_by_discipline_detail) > 0) {
           na.value = "grey90"
         ) +
         ggplot2::labs(
-          title = "Gap connaissance-usage par famille d'objets",
-          subtitle = "Écart moyen en points par discipline détaillée et famille de notions/outils.",
+          title = "Écart connaissance-usage par famille d'objets",
+          subtitle = "Différence moyenne en points selon la discipline et la famille d'objets.",
           x = NULL,
           y = NULL,
           fill = "Gap"
