@@ -1,26 +1,38 @@
 # =============================================================================
-# SCRIPT 03 — ANALYSES COMPLÉMENTAIRES OSYR
-# Version v12.1 — 07/07/2026
+# SCRIPT 03 — TESTS, ROBUSTESSE ET COMPARAISONS AJUSTÉES
+# Version 2026-09-27
 #
-# OBJECTIF
-#   Compléter le script 01 par une couche de tests, robustesse et visualisations :
-#   - comparer avec et sans pondération ;
-#   - comparer discipline détaillée vs discipline agrégée ;
-#   - tester les écarts item par item avec intervalles de confiance ;
-#   - ajouter une correction FDR pour éviter la surinterprétation des nombreux tests ;
-#   - produire des synthèses interprétables plutôt qu'un empilement de coefficients ;
-#   - intégrer les nouvelles sorties du script 01 v14 : dispositifs Q8 détaillés,
-#     MOOC/autoformation, gaps connaissance-usage, disciplines détaillées ;
-#   - générer un export Excel consolidé, plus facile à partager ;
-#   - corriger la fonction FDR pour les modèles Q8, dont les colonnes IC sont nommées *_approx.
+# RÔLE DANS LE WORKFLOW
+#   Compléter le socle descriptif du script 01 par les analyses nécessaires
+#   pour apprécier la stabilité des associations et les différences de
+#   composition entre groupes.
+#
+# CORRESPONDANCE AVEC LE PLAN DE DÉPOUILLEMENT
+#   - comparer résultats pondérés et non pondérés ;
+#   - comparer discipline détaillée et regroupement disciplinaire agrégé ;
+#   - tester les écarts entre exposition organisée et absence de dispositif ;
+#   - examiner les items Q4/Q5/Q12/Q13/Q15 et Q8 ;
+#   - contrôler la multiplicité par Benjamini-Hochberg ;
+#   - documenter la balance des covariables avant toute lecture causale ;
+#   - produire les diagnostics de robustesse mobilisés dans le rapport.
+#
+# MÉTHODE
+#   Les modèles sont associatifs. La spécification principale utilise la
+#   pondération .weight issue de Poids. Les analyses sans pondération sont des
+#   tests de sensibilité et utilisent uniquement la constante technique
+#   weight_none = 1.
 #
 # PRÉREQUIS
 #   source("01_analyse_osyr_base_et_modeles.R")
 #
 # SORTIES
 #   outputs_osyr_v2_complements_30062026/
+#     tables/      synthèses descriptives et robustesse
+#     models/      coefficients, IC, p et p ajustées FDR
+#     methodology/pondération, balance et registres méthodologiques
+#     figures/     figures de robustesse et diagnostics
+#     exports/     classeur consolidé
 # =============================================================================
-
 options(
   scipen = 999,
   dplyr.summarise.inform = FALSE,
@@ -887,10 +899,10 @@ if (has_rows(q5_by_discipline_detail)) {
 save_table(q5_gap_interpretive_summary, "q5_gap_interpretive_summary")
 
 # -----------------------------------------------------------------------------
-# 10. Visualisations enrichies
+# 10. Figures de robustesse et de comparaison
 # -----------------------------------------------------------------------------
 
-# 10.1 Coefficient plot score : scénario pondération / discipline.
+# 10.1 Associations sur les scores selon les scénarios de sensibilité.
 if (has_rows(score_weighted_unweighted_tests)) {
   p_score_tests <- score_weighted_unweighted_tests |>
     dplyr::filter(weight_var %in% c("weight_none", ".weight")) |>
@@ -916,10 +928,10 @@ if (has_rows(score_weighted_unweighted_tests)) {
     ggplot2::scale_x_continuous(labels = function(x) paste0(x, " pts")) +
     ggplot2::labs(
       title = "Robustesse des effets associés aux dispositifs",
-      subtitle = "Comparaison avec/sans pondération et discipline détaillée/agrégée.",
+      subtitle = "Stabilité des estimations selon la pondération et le niveau de regroupement disciplinaire.",
       x = "Différence ajustée : dispositif organisé moins aucun dispositif",
       y = NULL,
-      caption = "Modèles associatifs, contrôlés par année, langue et discipline."
+      caption = "Estimations ajustées sur l'année de thèse, la langue du questionnaire et la discipline."
     ) +
     theme_osyr(base_size = 11)
 
@@ -927,7 +939,7 @@ if (has_rows(score_weighted_unweighted_tests)) {
   save_plot(p_score_tests, "01_tests_scores_avec_sans_ponderation.png", width = 13.8, height = 7.8)
 }
 
-# 10.2 Heatmap de robustesse : valeurs des coefficients selon scénario.
+# 10.2 Matrice de robustesse des coefficients.
 if (has_rows(score_weighted_unweighted_tests)) {
   p_robust_heat <- score_weighted_unweighted_tests |>
     dplyr::filter(weight_var %in% c("weight_none", ".weight")) |>
@@ -958,7 +970,7 @@ if (has_rows(score_weighted_unweighted_tests)) {
     ) +
     ggplot2::labs(
       title = "Carte de robustesse des coefficients",
-      subtitle = "Un résultat solide reste du même côté de zéro selon les spécifications.",
+      subtitle = "Variation des estimations selon les principales spécifications testées.",
       x = NULL,
       y = NULL,
       fill = "Écart"
@@ -1003,8 +1015,8 @@ if (has_rows(score_robustness_summary)) {
       drop = TRUE
     ) +
     ggplot2::labs(
-      title = "Quels résultats sont vraiment robustes ?",
-      subtitle = "Médiane et amplitude des estimations selon les spécifications.",
+      title = "Robustesse des associations selon les spécifications",
+      subtitle = "Médiane et étendue des estimations obtenues dans les analyses de sensibilité.",
       x = "Écart ajusté médian",
       y = NULL,
       color = NULL
@@ -1014,7 +1026,7 @@ if (has_rows(score_robustness_summary)) {
   save_plot(p_robust_summary, "02b_resume_robustesse_scores.png", width = 13, height = 7.6)
 }
 
-# 10.4 Items : top des effets avec FDR.
+# 10.4 Items présentant les associations les plus marquées après correction FDR.
 if (has_rows(item_tests)) {
   p_item_fdr <- item_tests |>
     dplyr::filter(weight_var == ".weight", discipline_level == "detail") |>
@@ -1041,8 +1053,8 @@ if (has_rows(item_tests)) {
       labels = c("FALSE" = "Non robuste FDR", "TRUE" = "FDR < 0,05")
     ) +
     ggplot2::labs(
-      title = "Items qui portent les écarts exposés / non exposés",
-      subtitle = "Modèles pondérés, discipline détaillée ; correction FDR par bloc.",
+      title = "Items associés aux écarts entre groupes d'exposition",
+      subtitle = "Estimations ajustées ; les résultats tiennent compte de la correction pour comparaisons multiples.",
       x = "Écart ajusté",
       y = NULL,
       color = NULL
@@ -1085,7 +1097,7 @@ if (has_rows(covariate_balance)) {
       ) +
       ggplot2::labs(
         title = "Déséquilibres de composition entre exposés et non exposés",
-        subtitle = "Différences standardisées pondérées par modalité ; |SMD| >= 0,10 signale un déséquilibre à examiner.",
+        subtitle = "Différences standardisées pondérées entre groupes avant ajustement.",
         x = "Différence standardisée (SMD)",
         y = NULL,
         fill = NULL,
@@ -1122,18 +1134,18 @@ if (has_rows(discipline_detail_effects)) {
     ) +
     ggplot2::labs(
       title = "Effet de l'exposition dans chaque discipline détaillée",
-      subtitle = "Modèles pondérés séparés par discipline.",
+      subtitle = "Associations estimées séparément dans chaque discipline.",
       x = "Différence ajustée exposés - non exposés",
       y = NULL,
       color = NULL,
-      caption = "À lire avec prudence : les IC sont larges dans les disciplines à faibles effectifs."
+      caption = "Les intervalles de confiance rendent compte de la précision variable selon les effectifs disciplinaires."
     ) +
     theme_osyr(base_size = 9.8)
 
   save_plot(p_disc_effects, "05_effets_exposition_par_discipline_detail.png", width = 14.5, height = 9)
 }
 
-# 10.7 Heatmap écarts exposés/non exposés par famille d'objets et discipline.
+# 10.7 Écarts par famille Q5 et discipline.
 if (has_rows(q5_long) && "item_family" %in% names(q5_long)) {
   gap_family_disc <- q5_long |>
     dplyr::filter(!is.na(discipline_detail), !is.na(exposure2)) |>
@@ -1186,8 +1198,8 @@ if (has_rows(q5_long) && "item_family" %in% names(q5_long)) {
         na.value = "grey90"
       ) +
       ggplot2::labs(
-        title = "Où l'exposition fait-elle le plus de différence ?",
-        subtitle = "Écarts exposés - non exposés par discipline détaillée et famille d'objets.",
+        title = "Écarts selon la discipline et la famille d'objets",
+        subtitle = "Différences entre groupes d'exposition selon la discipline et la famille Q5.",
         x = NULL,
         y = NULL,
         fill = "Écart"
@@ -1228,8 +1240,8 @@ if (has_rows(q8_device_distribution_detail_by_language)) {
         labels = c("FALSE" = "Plus fréquent en français", "TRUE" = "Plus fréquent en anglais")
       ) +
       ggplot2::labs(
-        title = "Quels dispositifs sont plus souvent déclarés dans le questionnaire anglais ?",
-        subtitle = "Différence de part pondérée : anglais moins français.",
+        title = "Dispositifs déclarés selon la langue du questionnaire",
+        subtitle = "Écart de part pondérée entre questionnaires anglais et français.",
         x = "Différence en points de pourcentage",
         y = NULL,
         fill = NULL
@@ -1261,7 +1273,7 @@ if (has_rows(q8_device_models_summary)) {
     ) +
     ggplot2::labs(
       title = "Association entre langue du questionnaire et dispositifs Q8",
-      subtitle = "Modèles pondérés, contrôlés par année et discipline détaillée.",
+      subtitle = "Association ajustée sur l'année de thèse et la discipline.",
       x = "Association approximative en points",
       y = NULL,
       color = NULL,
