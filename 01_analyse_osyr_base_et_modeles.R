@@ -1700,12 +1700,15 @@ if (exists("q8_devices_long") && nrow(q8_devices_long) > 0) {
 
   # 11bis-2. Focus MOOC / autoformation par discipline.
   q8_auto_mooc_focus <- q8_device_by_discipline |>
-    dplyr::filter(device_type == "Autoformation / MOOC / autre") |>
+    # Le focus réunit ici trois modalités pour les comparer visuellement,
+    # sans les confondre dans la variable d'exposition : MOOC (5) reste une
+    # formation organisée, autoformation (6) et autres (98) non.
+    dplyr::filter(device_code %in% c(5, 6, 98)) |>
     dplyr::mutate(
       device_focus = dplyr::case_when(
         stringr::str_detect(clean_ascii(device_label), "mooc") ~ "MOOC / parcours asynchrone",
         stringr::str_detect(clean_ascii(device_label), "autoformation|documentation") ~ "Autoformation documentaire",
-        TRUE ~ "Autre autoformation"
+        TRUE ~ "Autre modalité"
       )
     ) |>
     dplyr::group_by(discipline_detail, device_focus) |>
@@ -1728,7 +1731,7 @@ if (exists("q8_devices_long") && nrow(q8_devices_long) > 0) {
         values = c(
           "MOOC / parcours asynchrone" = unname(osyr_palette["orange"]),
           "Autoformation documentaire" = unname(osyr_palette["purple"]),
-          "Autre autoformation" = unname(osyr_palette["grey"])
+          "Autre modalité" = unname(osyr_palette["grey"])
         ),
         drop = TRUE
       ) +
