@@ -485,7 +485,9 @@ score_labels <- tibble::tribble(
   "score_q13_dont_know", "Intentions : je ne sais pas", "Incertitude",
   "score_q12_incitation", "Environnement perçu comme incitatif", "Environnement",
   "score_q12_frein", "Environnement perçu comme un frein", "Environnement",
-  "score_q15_agreement", "Accord avec les affirmations SO", "Représentations",
+  # Le score global d'accord Q15 mélange des affirmations positives et négatives
+  # et n'a donc pas de direction substantielle univoque. Les modèles de
+  # représentations utilisent les trois dimensions interprétables ci-dessous.
   "score_q15_benefits", "Bénéfices scientifiques perçus", "Représentations",
   "score_q15_constraints", "Contraintes institutionnelles/économiques", "Représentations",
   "score_q15_risks", "Risques individuels perçus", "Représentations"
