@@ -592,7 +592,10 @@ df <- df_raw |>
     q8_has_other = purrr::map_lgl(q8_codes_by_row, ~ 98 %in% .x),
     q8_n_organized_types = purrr::map_int(q8_codes_by_row, ~ length(intersect(.x, 1:4))),
 
+    q8_inconsistent_none = q8_has_none & (q8_has_organized | q8_has_self_or_other),
+
     exposure3 = dplyr::case_when(
+      q8_inconsistent_none ~ "Indéterminé",
       q8_has_none ~ "Aucun dispositif",
       q8_has_organized ~ "Dispositif organisé",
       q8_has_self_or_other ~ "Autoformation / autre seulement",
@@ -650,7 +653,7 @@ context_vars <- c(
   "respondent_id", ".weight", "weight_none", "exposure3", "exposure2",
   "exposure_organized", "training_intensity", "q8_n_organized_types",
   "q8_has_presentiel", "q8_has_distanciel", "q8_has_async",
-  "q8_has_autoformation", "q8_has_other", "q7_group",
+  "q8_has_autoformation", "q8_has_other", "q8_inconsistent_none", "q7_group",
   "year_code", "year", "discipline_code", "discipline_detail",
   "discipline_broad", "institution", "language_group"
 )
@@ -1045,6 +1048,14 @@ quality_overview <- tibble::tibble(
   n_exposure3_levels = dplyr::n_distinct(df$exposure3, na.rm = TRUE)
 )
 write_table(quality_overview, "quality_overview")
+
+q8_exposure_consistency <- tibble::tibble(
+  n_respondents = nrow(df),
+  n_none_with_other_selection = sum(df$q8_inconsistent_none, na.rm = TRUE),
+  pct_none_with_other_selection = mean(df$q8_inconsistent_none, na.rm = TRUE),
+  n_exposure_indeterminate = sum(df$exposure3 == "Indéterminé", na.rm = TRUE)
+)
+write_table(q8_exposure_consistency, "q8_exposure_consistency", subdir = "diagnostics")
 
 discipline_mapping <- df |>
   dplyr::distinct(discipline_code, discipline_detail, discipline_broad) |>
