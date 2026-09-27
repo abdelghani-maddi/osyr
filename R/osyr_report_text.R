@@ -654,9 +654,26 @@ section_summary_table <- function(section) {
 
   if (section == 7) {
     x <- report_read_complement("score_robustness_summary")
-    if (nrow(x) > 0) {
-      keep <- intersect(c("outcome_label", "median_estimate_pp", "min_estimate_pp", "max_estimate_pp", "conclusion"), names(x))
-      return(x |> dplyr::select(dplyr::all_of(keep)) |> dplyr::slice_head(n = 10))
+    if (nrow(x) > 0 && all(c(
+      "outcome_label", "median_estimate_pp",
+      "min_estimate_pp", "max_estimate_pp", "conclusion"
+    ) %in% names(x))) {
+      return(
+        x |>
+          dplyr::filter(outcome_label != "Accord avec les affirmations SO") |>
+          dplyr::slice_head(n = 10) |>
+          dplyr::transmute(
+            Indicateur = clean_report_label(outcome_label),
+            `Estimation médiane` = fmt_pp_report(median_estimate_pp),
+            `Étendue observée` = paste0(
+              scales::number(min_estimate_pp, accuracy = 0.1, decimal.mark = ","),
+              " à ",
+              scales::number(max_estimate_pp, accuracy = 0.1, decimal.mark = ","),
+              " points"
+            ),
+            `Lecture` = clean_report_label(conclusion)
+          )
+      )
     }
   }
 
