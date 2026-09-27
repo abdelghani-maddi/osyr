@@ -27,6 +27,7 @@ RUN_02_RAPPORT_WORD_EXISTANT    <- FALSE
 RUN_03_ANALYSES_COMPLEMENTAIRES <- TRUE
 RUN_04_POWERPOINT_EXISTANT      <- FALSE
 RUN_FINAL_ANALYSES              <- TRUE
+RUN_PLAN_DEPOUILLEMENT           <- TRUE
 RUN_FIGURE_POLISH               <- TRUE
 RUN_05_RAPPORT_FINAL            <- TRUE
 RUN_06_PRESENTATION_FINALE      <- TRUE
@@ -82,6 +83,10 @@ if (RUN_04_POWERPOINT_EXISTANT) {
 
 if (RUN_FINAL_ANALYSES) {
   run_script(file.path("R", "osyr_final_analyses.R"))
+}
+
+if (RUN_PLAN_DEPOUILLEMENT) {
+  run_script(file.path("R", "osyr_plan_depouillement_analyses.R"))
 }
 
 # Cette étape reprend les tables calculées et régénère les figures principales
