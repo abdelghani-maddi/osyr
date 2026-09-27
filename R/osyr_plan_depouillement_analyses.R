@@ -158,8 +158,6 @@ if ("exposure3" %in% names(df)) {
 }
 
 if ("training_intensity" %in% names(df)) {
-  write_plan(group_mean(df |> dplyr::mutate(one = 1), c("training_intensity"), "one"), "plan_q10_distribution_globale_technique")
-
   q10_global <- df |>
     dplyr::filter(!is.na(training_intensity), !is.na(.weight), .weight > 0) |>
     dplyr::group_by(training_intensity) |>
@@ -182,6 +180,16 @@ if ("training_intensity" %in% names(df)) {
     dplyr::mutate(pct_w = weighted_n / sum(weighted_n)) |>
     dplyr::ungroup()
   write_plan(q10_disc, "plan_q10_par_discipline")
+}
+
+if (all(c("exposure3", "discipline_detail") %in% names(df))) {
+  exposure_disc <- df |>
+    dplyr::filter(!is.na(exposure3), !is.na(discipline_detail), !is.na(.weight), .weight > 0) |>
+    dplyr::group_by(discipline_detail, exposure3) |>
+    dplyr::summarise(n = dplyr::n(), weighted_n = sum(.weight), .groups = "drop_last") |>
+    dplyr::mutate(pct_w = weighted_n / sum(weighted_n)) |>
+    dplyr::ungroup()
+  write_plan(exposure_disc, "plan_formation_exposition_par_discipline")
 }
 
 q9_available <- has_rows(q9_long) && all(c("respondent_id", "organizer_label", ".weight") %in% names(q9_long))
@@ -254,6 +262,17 @@ if ("score_q11_training_evaluation" %in% names(df)) {
       "plan_q11_selon_direction_these_q12"
     )
   }
+
+  if (all(c("score_q12_incitation", "score_q12_frein") %in% names(df))) {
+    q11_env <- df |>
+      dplyr::filter(!is.na(score_q11_training_evaluation)) |>
+      dplyr::mutate(
+        incitation_quartile = dplyr::ntile(score_q12_incitation, 4),
+        frein_quartile = dplyr::ntile(score_q12_frein, 4)
+      )
+    write_plan(group_mean(q11_env, c("incitation_quartile"), "score_q11_training_evaluation"), "plan_q11_selon_incitation_q12")
+    write_plan(group_mean(q11_env, c("frein_quartile"), "score_q11_training_evaluation"), "plan_q11_selon_frein_q12")
+  }
 }
 
 focus_scores <- c(
@@ -272,6 +291,21 @@ if ("exposure3" %in% names(df) && length(focus_scores) > 0) {
     dplyr::group_by(exposure3, indicator) |>
     dplyr::summarise(n = dplyr::n(), mean_w = w_mean(value, .weight), .groups = "drop")
   write_plan(focus_training, "plan_focus_non_formes_autoformes_organises")
+
+  composition_vars <- c("year", "discipline_detail", "director_environment")
+  composition_vars <- composition_vars[composition_vars %in% names(df)]
+  focus_composition <- purrr::map_dfr(composition_vars, function(v) {
+    df |>
+      dplyr::filter(
+        exposure3 %in% c("Aucun dispositif", "Autoformation / autre seulement", "Dispositif organisé"),
+        !is.na(.data[[v]]), !is.na(.weight), .weight > 0
+      ) |>
+      dplyr::group_by(exposure3, category = .data[[v]]) |>
+      dplyr::summarise(weighted_n = sum(.weight), n = dplyr::n(), .groups = "drop_last") |>
+      dplyr::mutate(pct_w = weighted_n / sum(weighted_n), variable = v, .before = 1) |>
+      dplyr::ungroup()
+  })
+  write_plan(focus_composition, "plan_focus_non_formes_autoformes_composition")
 }
 
 mode_flags <- c("q8_has_presentiel", "q8_has_distanciel")
@@ -374,6 +408,22 @@ if (has_rows(q5_long) && all(c("respondent_id", "item_family", "known_well", "us
       "plan_q5_familles_selon_direction_these"
     )
   }
+
+  if (all(c("q8_has_presentiel", "q8_has_distanciel") %in% names(q5_family_person))) {
+    q5_mode <- q5_family_person |>
+      dplyr::mutate(
+        training_mode = dplyr::case_when(
+          q8_has_presentiel & q8_has_distanciel ~ "Présentiel et distanciel",
+          q8_has_distanciel & !q8_has_presentiel ~ "Distanciel seulement",
+          q8_has_presentiel & !q8_has_distanciel ~ "Présentiel seulement",
+          TRUE ~ "Autre / aucun"
+        )
+      ) |>
+      dplyr::filter(!is.na(.weight), .weight > 0) |>
+      dplyr::group_by(training_mode, item_family) |>
+      dplyr::summarise(knowledge_w = w_mean(knowledge_family, .weight), usage_w = w_mean(usage_family, .weight), n = dplyr::n(), .groups = "drop")
+    write_plan(q5_mode, "plan_q5_familles_par_presentiel_distanciel")
+  }
 }
 
 q4_q5_rules <- tibble::tribble(
@@ -388,7 +438,7 @@ q4_q5_links <- tibble::tibble()
 if (has_rows(q4_long) && has_rows(q5_long)) {
   q4_q5_links <- purrr::pmap_dfr(q4_q5_rules, function(link, q4_pattern, q5_pattern) {
     q4_one <- q4_long |>
-      dplyr::filter(stringr::str_detect(norm_text(item_label), norm_text(q4_pattern))) |>
+      dplyr::filter(stringr::str_detect(norm_text(item_label), q4_pattern)) |>
       dplyr::group_by(respondent_id) |>
       dplyr::summarise(practice_done = any(positive %in% TRUE), .groups = "drop")
 
@@ -532,12 +582,18 @@ if (q14_available) {
   write_plan(q14_summary, "plan_q14_raisons_non_adoption")
 
   if ("exposure3" %in% names(q14_long)) {
+    q14_den_exp <- q14_long |>
+      dplyr::filter(reason_code != 97, !is.na(exposure3), !is.na(.weight), .weight > 0) |>
+      dplyr::distinct(exposure3, respondent_id, .weight) |>
+      dplyr::group_by(exposure3) |>
+      dplyr::summarise(total_w = sum(.weight), .groups = "drop")
+
     q14_exposure <- q14_long |>
       dplyr::filter(reason_code != 97, !is.na(exposure3), !is.na(.weight), .weight > 0) |>
       dplyr::group_by(exposure3, reason_label) |>
-      dplyr::summarise(n = dplyr::n_distinct(respondent_id), weighted_n = sum(.weight), .groups = "drop_last") |>
-      dplyr::mutate(pct_within_group = weighted_n / sum(weighted_n)) |>
-      dplyr::ungroup()
+      dplyr::summarise(n = dplyr::n_distinct(respondent_id), weighted_n = sum(.weight), .groups = "drop") |>
+      dplyr::left_join(q14_den_exp, by = "exposure3") |>
+      dplyr::mutate(pct_respondents_w = weighted_n / total_w)
     write_plan(q14_exposure, "plan_q14_raisons_par_exposition")
   }
 }
@@ -752,6 +808,49 @@ if (q3_available) {
     write_plan(q3_disc, "plan_q3_categories_par_discipline")
   }
 
+  if (all(c("q8_has_presentiel", "q8_has_distanciel") %in% names(q3_cat))) {
+    q3_mode <- q3_cat |>
+      dplyr::mutate(
+        training_mode = dplyr::case_when(
+          q8_has_presentiel & q8_has_distanciel ~ "Présentiel et distanciel",
+          q8_has_distanciel & !q8_has_presentiel ~ "Distanciel seulement",
+          q8_has_presentiel & !q8_has_distanciel ~ "Présentiel seulement",
+          TRUE ~ "Autre / aucun"
+        )
+      ) |>
+      dplyr::filter(!is.na(.weight), .weight > 0) |>
+      dplyr::group_by(training_mode, word_category) |>
+      dplyr::summarise(weighted_n = sum(.weight), n = dplyr::n(), .groups = "drop_last") |>
+      dplyr::mutate(pct_mentions_w = weighted_n / sum(weighted_n)) |>
+      dplyr::ungroup()
+    write_plan(q3_mode, "plan_q3_categories_par_presentiel_distanciel")
+  }
+
+  if (q9_available) {
+    q3_q9 <- q3_cat |>
+      dplyr::select(respondent_id, word_category, .weight) |>
+      dplyr::inner_join(q9_long |> dplyr::distinct(respondent_id, organizer_label), by = "respondent_id") |>
+      dplyr::filter(!is.na(.weight), .weight > 0) |>
+      dplyr::group_by(organizer_label, word_category) |>
+      dplyr::summarise(weighted_n = sum(.weight), n = dplyr::n(), .groups = "drop_last") |>
+      dplyr::mutate(pct_mentions_w = weighted_n / sum(weighted_n)) |>
+      dplyr::ungroup()
+    write_plan(q3_q9, "plan_q3_categories_par_organisateur_q9")
+  }
+
+  score_links <- c("score_q5_known_well", "score_q5_used", "score_q13_open_intentions", "score_q15_benefits", "score_q15_constraints", "score_q15_risks")
+  score_links <- score_links[score_links %in% names(df)]
+  if (length(score_links) > 0) {
+    q3_scores <- q3_cat |>
+      dplyr::distinct(respondent_id, word_category) |>
+      dplyr::left_join(df |> dplyr::select(respondent_id, .weight, dplyr::all_of(score_links)), by = "respondent_id") |>
+      tidyr::pivot_longer(cols = dplyr::all_of(score_links), names_to = "indicator", values_to = "value") |>
+      dplyr::filter(!is.na(value), !is.na(.weight), .weight > 0) |>
+      dplyr::group_by(word_category, indicator) |>
+      dplyr::summarise(n = dplyr::n(), mean_w = w_mean(value, .weight), .groups = "drop")
+    write_plan(q3_scores, "plan_q3_categories_et_scores")
+  }
+
   q3_coherence <- q3_cat |>
     dplyr::group_by(respondent_id) |>
     dplyr::summarise(
@@ -800,6 +899,18 @@ if (length(cah_scores) >= 5) {
       dplyr::group_by(cah_profile, indicator) |>
       dplyr::summarise(n = dplyr::n(), mean_w = w_mean(value, .weight), .groups = "drop")
     write_plan(cah_means, "plan_cah_caracterisation_scores")
+
+    cah_group_vars <- c("year", "discipline_detail", "exposure3")
+    cah_group_vars <- cah_group_vars[cah_group_vars %in% names(cah_df)]
+    cah_characteristics <- purrr::map_dfr(cah_group_vars, function(v) {
+      cah_df |>
+        dplyr::filter(!is.na(.data[[v]]), !is.na(.weight), .weight > 0) |>
+        dplyr::group_by(cah_profile, category = .data[[v]]) |>
+        dplyr::summarise(weighted_n = sum(.weight), n = dplyr::n(), .groups = "drop_last") |>
+        dplyr::mutate(pct_w = weighted_n / sum(weighted_n), variable = v, .before = 1) |>
+        dplyr::ungroup()
+    })
+    write_plan(cah_characteristics, "plan_cah_caracteristiques_annee_discipline_formation")
   }
 }
 
