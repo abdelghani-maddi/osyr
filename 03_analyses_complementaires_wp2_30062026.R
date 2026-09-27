@@ -971,7 +971,7 @@ if (has_rows(score_weighted_unweighted_tests)) {
     ggplot2::geom_point(size = 2.6, position = ggplot2::position_dodge(width = 0.65)) +
     ggplot2::scale_x_continuous(labels = function(x) paste0(x, " pts")) +
     ggplot2::labs(
-      title = "Robustesse des effets associés aux dispositifs",
+      title = "Robustesse des associations avec l'exposition aux dispositifs",
       subtitle = "Comparaison avec/sans pondération et discipline détaillée/agrégée.",
       x = "Différence ajustée : dispositif organisé moins aucun dispositif",
       y = NULL,
@@ -1014,7 +1014,7 @@ if (has_rows(score_weighted_unweighted_tests)) {
     ) +
     ggplot2::labs(
       title = "Carte de robustesse des coefficients",
-      subtitle = "Un résultat solide reste du même côté de zéro selon les spécifications.",
+      subtitle = "Signe et amplitude des coefficients selon les principales spécifications.",
       x = NULL,
       y = NULL,
       fill = "Écart"
@@ -1097,8 +1097,8 @@ if (has_rows(item_tests)) {
       labels = c("FALSE" = "Non robuste FDR", "TRUE" = "FDR < 0,05")
     ) +
     ggplot2::labs(
-      title = "Items qui portent les écarts exposés / non exposés",
-      subtitle = "Modèles pondérés, discipline détaillée ; correction FDR par bloc.",
+      title = "Écarts ajustés item par item selon l'exposition",
+      subtitle = "Estimations pondérées ajustées sur l'année, la langue et la discipline ; correction FDR par bloc.",
       x = "Écart ajusté",
       y = NULL,
       color = NULL
@@ -1177,8 +1177,8 @@ if (has_rows(discipline_detail_effects)) {
       labels = c("FALSE" = "Non robuste FDR", "TRUE" = "FDR < 0,05")
     ) +
     ggplot2::labs(
-      title = "Effet de l'exposition dans chaque discipline détaillée",
-      subtitle = "Modèles pondérés séparés par discipline.",
+      title = "Association avec l'exposition dans chaque discipline",
+      subtitle = "Estimations issues de modèles pondérés ajustés séparément dans chaque discipline.",
       x = "Différence ajustée exposés - non exposés",
       y = NULL,
       color = NULL,
@@ -1284,8 +1284,8 @@ if (has_rows(q8_device_distribution_detail_by_language)) {
         labels = c("FALSE" = "Plus fréquent en français", "TRUE" = "Plus fréquent en anglais")
       ) +
       ggplot2::labs(
-        title = "Quels dispositifs sont plus souvent déclarés dans le questionnaire anglais ?",
-        subtitle = "Différence de part pondérée : anglais moins français.",
+        title = "Écarts de déclaration des dispositifs selon la langue du questionnaire",
+        subtitle = "Différence de part pondérée entre questionnaire anglais et questionnaire français.",
         x = "Différence en points de pourcentage",
         y = NULL,
         fill = NULL
