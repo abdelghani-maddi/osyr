@@ -1,19 +1,24 @@
 # =============================================================================
-# SCRIPT 01 — ANALYSE PRINCIPALE OSYR
-# Version v14 — 07/07/2026
+# SCRIPT 01 — CONSTRUIRE LA BASE ANALYTIQUE OSYR
+# Version 2026-09-27
 #
-# OBJECTIF
-#   Produire une base analytique propre ET intégrer dès le socle les sorties
-#   demandées après la réunion WP2 :
-#   - conserver toutes les disciplines détaillées, pas seulement les 4 agrégées ;
-#   - récupérer robustement les libellés de disciplines depuis la datamap ;
-#   - documenter explicitement les deux niveaux de discipline ;
-#   - produire des figures pour toutes les disciplines détaillées ;
-#   - produire les formats longs nécessaires aux tests du script 03 ;
-#   - produire les premiers scores synthétiques ;
-#   - produire une distribution détaillée des dispositifs Q8, sans agrégation ;
-#   - corriger les visualisations Q8 par langue et scores par discipline ;
-#   - ajouter des visualisations complémentaires robustes et éviter les figures vides.
+# RÔLE DANS LE WORKFLOW
+#   Transformer la base brute et la DATAMAP en une base analytique documentée.
+#   Ce script définit les variables de référence utilisées par tous les scripts
+#   suivants ; il ne doit donc contenir aucun choix implicite de pondération,
+#   de dénominateur ou de regroupement.
+#
+# CORRESPONDANCE AVEC LE PLAN DE DÉPOUILLEMENT
+#   Parcours de formation :
+#     Q7 politique d'établissement ; Q8 dispositifs ; Q9 organisateurs ;
+#     Q10 volume ; Q11 évaluation.
+#   Connaissances et pratiques :
+#     Q4 pratiques de recherche ; Q5 connaissance et usage.
+#   Intentions et perceptions :
+#     Q12 environnement ; Q13 intentions ; Q14 non-adoption ; Q15 perceptions.
+#   Analyses transversales :
+#     année de thèse, discipline détaillée et agrégée, langue du questionnaire,
+#     exposition aux dispositifs et trois mots Q3 lorsque disponibles.
 #
 # ENTRÉES
 #   data/BJ30232 - BDD V2.csv
@@ -21,18 +26,20 @@
 #
 # SORTIES
 #   outputs_osyr_v2_final/
-#     ├── data_clean/
-#     ├── tables/
-#     ├── figures/
-#     ├── models/
-#     ├── text_analysis/
-#     └── diagnostics/
+#     data_clean/   base analytique et batteries au format long
+#     tables/       descriptifs et tables de contrôle
+#     figures/      figures de travail réutilisables
+#     models/       modèles du socle
+#     text_analysis/ sorties Q3
+#     diagnostics/  contrôles de qualité et de dénominateurs
 #
-# NOTE MÉTHODOLOGIQUE
-#   Les analyses sont descriptives et associatives. Les différences entre
-#   doctorants exposés et non exposés ne sont pas des effets causaux (même si on peut être tenté ;) ).
+# CONVENTIONS MÉTHODOLOGIQUES
+#   - une seule pondération d'enquête : Poids, recodée en .weight ;
+#   - les poids manquants ou non positifs sont exclus des analyses pondérées ;
+#   - les non-réponses ne sont jamais assimilées à des réponses négatives ;
+#   - les réponses Q8 contradictoires sont classées Indéterminé ;
+#   - les résultats sont descriptifs ou associatifs, jamais causaux.
 # =============================================================================
-
 options(
   scipen = 999,
   dplyr.summarise.inform = FALSE,
@@ -1161,7 +1168,7 @@ p_q8_devices_detail <- q8_device_distribution |>
   ) +
   ggplot2::labs(
     title = "Distribution détaillée des dispositifs déclarés",
-    subtitle = "Modalités Q8 non agrégées. Le MOOC est classé avec l'autoformation / autre.",
+    subtitle = "Répartition pondérée des modalités déclarées à Q8.",
     x = "Part pondérée des répondants ayant coché la modalité",
     y = NULL,
     caption = "Question multiréponse : les pourcentages ne s'additionnent pas nécessairement à 100 %."
@@ -1206,10 +1213,10 @@ if (dplyr::n_distinct(q8_device_distribution_by_language$language_group, na.rm =
     ) +
     ggplot2::labs(
       title = "Dispositifs Q8 détaillés selon la langue du questionnaire",
-      subtitle = "Part des répondants de chaque groupe ayant coché chaque modalité.",
+      subtitle = "Part pondérée des répondants ayant déclaré chaque modalité.",
       x = "Part pondérée dans chaque groupe de langue",
       y = NULL,
-      caption = "Question multiréponse. La langue du questionnaire est un proxy, pas une variable d'identité."
+      caption = "Q8 est une question multiréponse ; la somme des pourcentages peut dépasser 100 %."
     ) +
     theme_osyr(base_size = 10.5)
 
@@ -1278,7 +1285,7 @@ score_means_by_discipline_detail <- df |>
 write_table(score_means_by_discipline_detail, "score_means_by_discipline_detail")
 
 # -----------------------------------------------------------------------------
-# 11. Belles visualisations avec toutes les disciplines
+# 11. Visualisations descriptives par discipline
 # -----------------------------------------------------------------------------
 
 # 11.1 Distribution détaillée des disciplines.
@@ -1294,8 +1301,8 @@ p_disc_detail <- sample_discipline_detail |>
   ) +
   ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, min(1, max(sample_discipline_detail$pct_w, na.rm = TRUE) * 1.18))) +
   ggplot2::labs(
-    title = "Toutes les disciplines détaillées des répondants",
-    subtitle = "Répartition pondérée, sans agrégation en 4 grands domaines.",
+    title = "Répartition des répondants par discipline",
+    subtitle = "Répartition pondérée selon les dix domaines disciplinaires.",
     x = "Pourcentage pondéré",
     y = NULL,
     caption = "Source : enquête OSYR, pondération Poids."
@@ -1316,14 +1323,14 @@ p_exposure_detail <- cross_exposure_by_discipline_detail |>
   ggplot2::scale_fill_manual(values = exposure_colors, drop = TRUE) +
   ggplot2::labs(
     title = "Exposition aux dispositifs par discipline détaillée",
-    subtitle = "Répartition pondérée dans chaque discipline, sans regroupement en 4 domaines.",
+    subtitle = "Répartition pondérée des formes d'exposition dans chaque discipline.",
     x = "Pourcentage pondéré dans la discipline",
     y = NULL
   ) +
   theme_osyr(base_size = 10.8)
 save_plot(p_exposure_detail, "04b_exposition_par_discipline_detail.png", width = 13.5, height = 9)
 
-# 11.3 Exposition organisée avec IC par disciplines détaillées.
+# 11.3 Exposition organisée avec intervalles de confiance par discipline.
 if (nrow(organized_by_discipline_detail_ci) > 0) {
   ci_cols <- names(organized_by_discipline_detail_ci)
   lower_col <- ci_cols[stringr::str_detect(ci_cols, "ci_l|ci_low|lower")]
@@ -1342,7 +1349,7 @@ if (nrow(organized_by_discipline_detail_ci) > 0) {
       ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Part exposée à un dispositif organisé par discipline détaillée",
-        subtitle = "Estimations pondérées avec intervalles de confiance.",
+        subtitle = "Part estimée de répondants exposés à un dispositif organisé.",
         x = "Part pondérée exposée",
         y = NULL,
         caption = "Les IC peuvent être larges pour les disciplines à faibles effectifs."
@@ -1352,7 +1359,7 @@ if (nrow(organized_by_discipline_detail_ci) > 0) {
   }
 }
 
-# 11.4 Heatmap Q5 connaissance par disciplines détaillées.
+# 11.4 Connaissance Q5 par discipline détaillée.
 p_q5_known_heat <- q5_by_discipline_detail |>
   dplyr::mutate(
     discipline_detail = stringr::str_wrap(as.character(discipline_detail), 32),
@@ -1363,7 +1370,7 @@ p_q5_known_heat <- q5_by_discipline_detail |>
   ggplot2::scale_fill_gradient(low = "#F2F4F7", high = osyr_palette["teal"], labels = scales::percent_format(accuracy = 1), na.value = "grey90") +
   ggplot2::labs(
     title = "Connaissance des notions de science ouverte par discipline détaillée",
-    subtitle = "Part pondérée déclarant connaître bien chaque notion.",
+    subtitle = "Part déclarant bien connaître chaque notion ou outil.",
     x = NULL,
     y = NULL,
     fill = "Connaissance"
@@ -1372,7 +1379,7 @@ p_q5_known_heat <- q5_by_discipline_detail |>
   ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 35, hjust = 1), legend.position = "right")
 save_plot(p_q5_known_heat, "14b_heatmap_q5_connaissance_par_discipline_detail.png", width = 15, height = 9)
 
-# 11.5 Heatmap Q5 usage par disciplines détaillées.
+# 11.5 Usage Q5 par discipline détaillée.
 p_q5_used_heat <- q5_by_discipline_detail |>
   dplyr::mutate(
     discipline_detail = stringr::str_wrap(as.character(discipline_detail), 32),
@@ -1383,7 +1390,7 @@ p_q5_used_heat <- q5_by_discipline_detail |>
   ggplot2::scale_fill_gradient(low = "#F2F4F7", high = osyr_palette["blue"], labels = scales::percent_format(accuracy = 1), na.value = "grey90") +
   ggplot2::labs(
     title = "Usage des outils de science ouverte par discipline détaillée",
-    subtitle = "Part pondérée déclarant avoir déjà utilisé chaque outil ou notion.",
+    subtitle = "Part déclarant avoir déjà utilisé chaque outil ou pratique.",
     x = NULL,
     y = NULL,
     fill = "Usage"
@@ -1473,11 +1480,11 @@ if (nrow(score_means_by_discipline_detail) > 0) {
       ) +
       ggplot2::labs(
         title = "Écarts exposés / non exposés par discipline détaillée",
-        subtitle = "Différence de score moyen pondéré : dispositif organisé moins aucun dispositif.",
+        subtitle = "Écart entre répondants exposés à un dispositif organisé et répondants sans dispositif.",
         x = NULL,
         y = NULL,
         fill = "Écart",
-        caption = "Lecture descriptive : les écarts ne sont pas interprétés causalement."
+        caption = "Les écarts sont descriptifs et ajustés selon les spécifications indiquées dans la méthode."
       ) +
       theme_osyr(base_size = 9.8) +
       ggplot2::theme(
@@ -1515,7 +1522,7 @@ if (nrow(score_means_by_discipline_detail) > 0) {
       ) +
       ggplot2::labs(
         title = "Connaissance et usage Q5 par discipline détaillée",
-        subtitle = "Comparaison entre doctorants sans dispositif et doctorants exposés à un dispositif organisé.",
+        subtitle = "Connaissance et usage moyens selon l'exposition aux dispositifs.",
         x = "Moyenne pondérée",
         y = NULL
       ) +
@@ -1554,7 +1561,7 @@ if (nrow(score_means_by_discipline_detail) > 0) {
       ggplot2::scale_x_continuous(labels = function(x) paste0(x, " pts")) +
       ggplot2::labs(
         title = "Plus grands écarts exposés / non exposés",
-        subtitle = "Top des différences absolues par discipline détaillée et indicateur.",
+        subtitle = "Écarts les plus marqués entre les deux groupes d'exposition.",
         x = "Écart en points de pourcentage",
         y = NULL,
         color = NULL
@@ -1611,7 +1618,7 @@ if (exists("q8_devices_long") && nrow(q8_devices_long) > 0) {
       ) +
       ggplot2::labs(
         title = "Dispositifs Q8 détaillés par discipline",
-        subtitle = "Part pondérée des répondants ayant coché chaque modalité dans chaque discipline.",
+        subtitle = "Part des répondants ayant déclaré chaque modalité Q8.",
         x = NULL,
         y = NULL,
         fill = "Part",
@@ -1662,7 +1669,7 @@ if (exists("q8_devices_long") && nrow(q8_devices_long) > 0) {
       ) +
       ggplot2::labs(
         title = "MOOC et autoformation par discipline détaillée",
-        subtitle = "Focus sur les modalités que l'on ne classe pas comme dispositifs organisés.",
+        subtitle = "Part déclarant un MOOC, une autoformation ou une modalité apparentée.",
         x = "Part pondérée des répondants",
         y = NULL
       ) +
@@ -1703,7 +1710,7 @@ if (exists("q5_by_discipline_detail") && nrow(q5_by_discipline_detail) > 0) {
       ) +
       ggplot2::labs(
         title = "Gap connaissance-usage par discipline détaillée",
-        subtitle = "Écart moyen entre notions bien connues et outils déjà utilisés.",
+        subtitle = "Écart entre connaissance déclarée et usage déclaré.",
         x = "Écart moyen en points de pourcentage",
         y = NULL
       ) +
@@ -1742,7 +1749,7 @@ if (exists("q5_by_discipline_detail") && nrow(q5_by_discipline_detail) > 0) {
         ) +
         ggplot2::labs(
           title = "Gap connaissance-usage par famille d'objets",
-          subtitle = "Écart moyen en points par discipline détaillée et famille de notions/outils.",
+          subtitle = "Écart connaissance-usage selon la discipline et la famille d'objets.",
           x = NULL,
           y = NULL,
           fill = "Gap"
@@ -1797,7 +1804,7 @@ if (file.exists(q3_concept_path)) {
         ) +
         ggplot2::labs(
           title = "À quoi fait penser la science ouverte ?",
-          subtitle = "Concepts repérés dans les trois mots cités par les doctorants.",
+          subtitle = "Catégories associées aux mots ou expressions spontanément cités.",
           x = "Pourcentage pondéré",
           y = NULL,
           caption = "Un répondant peut contribuer à plusieurs concepts."
