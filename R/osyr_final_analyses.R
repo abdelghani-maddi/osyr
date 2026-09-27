@@ -987,7 +987,7 @@ if ("exposure3" %in% names(df)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_52_focus_non_formes_autoformes.png", 6, "Profils et analyses transversales",
       "Non formés, autoformés et exposés à un dispositif organisé",
-      "Focus sur deux groupes explicitement mentionnés dans le plan de dépouillement.",
+      "Lecture : comparaison descriptive des scores des répondants sans dispositif et des répondants autoformés.",
       width = 13, height = 7.5, priority = 2
     )
   }
