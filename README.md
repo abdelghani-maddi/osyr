@@ -1,8 +1,8 @@
 # OSYR — Workflow analytique
 
-Version de travail : septembre 2026
+Version de travail : 27 septembre 2026
 
-Ce dépôt contient les scripts R utilisés pour traiter l'enquête OSYR, produire les analyses et générer les livrables.
+Ce dépôt contient la chaîne R utilisée pour préparer les données de l'enquête OSYR, produire les analyses prévues par le plan de dépouillement, vérifier leur robustesse et générer les livrables Word et PowerPoint.
 
 ## Lancement
 
@@ -13,48 +13,75 @@ data/BJ30232 - BDD V2.csv
 data/BJ30232 - DATAMAP V2.xlsx
 ```
 
-Puis lancer :
+Puis lancer depuis la racine du projet :
 
 ```r
 source("00_lancer_workflow_complet.R")
 ```
 
-## Scripts
+## Architecture
 
 ```text
-00_lancer_workflow_complet.R                # orchestration
-01_analyse_osyr_base_et_modeles.R           # nettoyage, variables, scores, descriptifs
-03_analyses_complementaires_wp2_30062026.R  # modèles, robustesse, FDR, diagnostics
-R/osyr_final_analyses.R                     # analyses destinées aux livrables finaux
-R/osyr_plan_depouillement_analyses.R        # audit point par point et analyses manquantes du plan
-R/osyr_figure_polish.R                      # mise en forme des figures finales
-05_produire_rapport_final.R                 # rapport Word
-06_generer_presentation_finale.R            # présentation
-99_session_info.R                           # environnement logiciel
+00_lancer_workflow_complet.R
+01_analyse_osyr_base_et_modeles.R
+03_analyses_complementaires_wp2_30062026.R
+R/osyr_final_analyses.R
+R/osyr_plan_depouillement_analyses.R
+R/osyr_figure_polish.R
+05_produire_rapport_final.R
+06_generer_presentation_finale.R
+99_session_info.R
 ```
 
-Les scripts 02 et 04 correspondent aux anciennes versions du rapport Word et du PowerPoint et restent disponibles à titre de compatibilité.
+Les scripts 02 et 04 sont des versions historiques du rapport et du diaporama. Ils restent dans le dépôt mais sont désactivés par défaut.
+
+## Rôle de chaque couche
+
+- **01** : nettoyage, DATAMAP, pondération, variables analytiques, batteries longues, scores, descriptifs et contrôles qualité.
+- **03** : modèles ajustés, tests item par item, intervalles de confiance, FDR, comparaison pondéré/non pondéré, balance et analyses de robustesse.
+- **osyr_final_analyses** : synthèses destinées aux livrables.
+- **osyr_plan_depouillement_analyses** : audit point par point du plan de septembre 2026 et analyses complémentaires Q7 à Q15, Q3 et profils.
+- **osyr_figure_polish** : figures de publication à partir des tables déjà calculées ; cette étape ne recalcule pas les résultats.
+- **05/06** : assemblage du rapport Word et du PowerPoint.
+- **99** : versions de R et des packages.
 
 ## Pondération
 
-La base comporte une seule variable de pondération : `Poids`.
+La base comporte une seule variable de pondération : `Poids`, recodée en `.weight`.
 
-Le script 01 la transforme en `.weight`. Les analyses complémentaires comparent ensuite :
+Les analyses pondérées excluent les poids manquants, nuls ou négatifs. `weight_none = 1` est uniquement une constante technique utilisée pour reproduire un scénario non pondéré ; ce n'est pas une seconde pondération.
 
-- un scénario non pondéré, représenté techniquement par `weight_none = 1` ;
-- un scénario pondéré utilisant uniquement `.weight`.
+## Dénominateurs
 
-Aucune autre variable numérique n'est interprétée comme un poids. Les observations dont `.weight` est manquant ou non positif sont exclues des analyses pondérées.
+Les non-réponses et codes hors champ ne sont pas transformés en réponses négatives. Les proportions sont calculées parmi les réponses valides de l'indicateur concerné.
+
+Q8, Q9 et Q14 sont multiréponses : leurs pourcentages ne sont pas destinés à s'additionner à 100 %.
+
+Q13 distingue explicitement `Oui = 1`, `Non = 2` et `Je ne sais pas = 97`.
+
+## Modèles et robustesse
+
+Les scores synthétiques sont analysés par régression linéaire pondérée. Les indicateurs binaires item par item utilisent des modèles linéaires de probabilité lorsque l'objectif est d'exprimer un écart ajusté en points.
+
+Les modèles spécifiques à la présence d'une modalité Q8 sont logistiques et sont restitués en **odds ratios** avec intervalle de confiance. Un coefficient logistique n'est pas interprété comme un écart en points de pourcentage.
+
+Les tests multiples sont complétés par une correction de Benjamini-Hochberg lorsque cela est pertinent.
+
+La balance des groupes exposés/non exposés utilise des différences standardisées pondérées (SMD).
+
+## Analyses multivariées
+
+L'ACP exploratoire utilise la pondération dans le centrage, la standardisation et la covariance. Le k-means et la CAH restent des classifications exploratoires d'individus ; les variables sont standardisées avec la pondération et les classes sont caractérisées avec des statistiques pondérées.
+
+Ces analyses ne définissent pas une typologie stable de la population des doctorants.
 
 ## DATAMAP
 
-`BJ30232 - DATAMAP V2.xlsx` fournit les libellés des questions, les codes et les modalités. Elle est utilisée pour reconstruire les libellés de Q1, Q2, Q4, Q5, Q7 à Q15 et pour documenter les recodages.
+`BJ30232 - DATAMAP V2.xlsx` est la référence pour les libellés, codes et modalités. Le workflow ne reconstruit pas arbitrairement les modalités lorsqu'elles sont disponibles dans la DATAMAP.
 
-Q2 comporte dix domaines disciplinaires détaillés. Un regroupement en quatre grands domaines est construit uniquement pour certaines analyses de robustesse.
+Q2 conserve les dix domaines disciplinaires. Le regroupement en quatre domaines n'est utilisé que dans certaines analyses de sensibilité.
 
-Le script 01 prépare désormais aussi, lorsque les colonnes sont présentes, les formats nécessaires pour Q3 (mots spontanés), Q7, Q9 et Q14, ainsi que les indicateurs présentiel/distanciel issus de Q8.
-
-## Principales sorties
+## Sorties
 
 ```text
 outputs_osyr_v2_final/
@@ -64,7 +91,7 @@ outputs_osyr_presentation_finale/
 outputs_osyr_v2_session/
 ```
 
-Les livrables principaux sont :
+Livrables :
 
 ```text
 outputs_osyr_rapport_final/rapport_final_osyr.docx
@@ -72,27 +99,22 @@ outputs_osyr_rapport_final/annexe_graphique_osyr.docx
 outputs_osyr_presentation_finale/presentation_finale_osyr.pptx
 ```
 
-## Documentation
-
-Voir notamment :
+Contrôles particulièrement utiles :
 
 ```text
-NOTES_METHODOLOGIQUES.md
-GUIDE_WORKFLOW_DETAILLE.md
-docs/PRODUCTION_FINALE_SEPTEMBRE_2026.md
+outputs_osyr_v2_final/diagnostics/response_denominator_diagnostics.csv
+outputs_osyr_v2_final/diagnostics/q8_exposure_consistency.csv
+outputs_osyr_rapport_final/tables/couverture_plan_depouillement_detaillee.csv
+outputs_osyr_v2_complements_30062026/methodology/covariate_balance_exposed_nonexposed.csv
 ```
+
+## Documentation
+
+- `GUIDE_WORKFLOW_DETAILLE.md`
+- `NOTES_METHODOLOGIQUES.md`
+- `docs/AUDIT_PLAN_DEPOUILLEMENT_SEPT2026.md`
+- `docs/CARTOGRAPHIE_CODE_PLAN_DEPOUILLEMENT.md`
 
 ## Interprétation
 
-Les analyses sont descriptives et associatives. Les modèles ajustés ne permettent pas d'attribuer causalement les différences observées aux dispositifs. Les réponses de connaissance, d'usage, de pratiques, d'intentions et de perceptions sont déclaratives.
-
-
-## Couverture du plan de dépouillement
-
-La table suivante est régénérée à chaque exécution :
-
-```text
-outputs_osyr_rapport_final/tables/couverture_plan_depouillement_detaillee.csv
-```
-
-Elle distingue les points analysés, les analyses conditionnelles à la présence des variables et les demandes qui nécessitent une source externe. Elle ne déduit pas la couverture à partir du seul nombre de figures.
+Les analyses sont descriptives et associatives. Les ajustements statistiques ne permettent pas d'attribuer causalement les écarts observés aux dispositifs de formation. Les réponses sont déclaratives et les analyses de profils et de mots spontanés restent exploratoires.
