@@ -800,13 +800,26 @@ df <- df |>
     score_q5_used = row_prop_codes(df, q5_vars, yes_codes = 4, no_codes = c(1, 2, 3, 4)),
     score_q13_open_intentions = row_prop_codes(df, q13_vars, yes_codes = 1, no_codes = c(1, 2, 97)),
     score_q13_dont_know = row_prop_codes(df, q13_vars, yes_codes = 97, no_codes = c(1, 2, 97)),
+    score_q11_training_evaluation = row_prop_codes(df, q11_vars, yes_codes = c(3, 4), no_codes = c(1, 2, 3, 4)),
     score_q12_incitation = row_prop_codes(df, q12_vars, yes_codes = c(4, 5), no_codes = c(1, 2, 3, 4, 5)),
     score_q12_frein = row_prop_codes(df, q12_vars, yes_codes = c(1, 2), no_codes = c(1, 2, 3, 4, 5)),
     score_q15_agreement = row_prop_codes(df, q15_vars, yes_codes = c(4, 5), no_codes = c(1, 2, 3, 4, 5)),
-    # Alias conservés pour compatibilité avec le script 03.
-    score_q15_benefits = score_q15_agreement,
-    score_q15_constraints = NA_real_,
-    score_q15_risks = NA_real_
+
+    # Q15 contient à la fois des bénéfices perçus et des énoncés de risque ou
+    # de contrainte. Ils sont donc séparés au lieu d'interpréter l'accord moyen
+    # sur les sept items comme une perception uniformément positive.
+    score_q15_benefits = row_prop_codes(
+      df, intersect(c("q15_a2", "q15_a4", "q15_a6"), q15_vars),
+      yes_codes = c(4, 5), no_codes = c(1, 2, 3, 4, 5)
+    ),
+    score_q15_constraints = row_prop_codes(
+      df, intersect(c("q15_a5", "q15_a7"), q15_vars),
+      yes_codes = c(4, 5), no_codes = c(1, 2, 3, 4, 5)
+    ),
+    score_q15_risks = row_prop_codes(
+      df, intersect(c("q15_a1", "q15_a3"), q15_vars),
+      yes_codes = c(4, 5), no_codes = c(1, 2, 3, 4, 5)
+    )
   )
 
 readr::write_csv(df, file.path(out_dir, "data_clean", "osyr_v2_corrigee_clean.csv"))
