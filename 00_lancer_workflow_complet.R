@@ -1,14 +1,15 @@
 # =============================================================================
 # SCRIPT 00 — LANCER LE WORKFLOW COMPLET OSYR
-# Version production finale — 21/09/2026 v3
+# Version production finale — 27/09/2026 v4
 # =============================================================================
 # Point d'entrée recommandé.
 # Le workflow distingue explicitement :
 #   1. analyses principales ;
 #   2. analyses complémentaires ;
 #   3. analyses de production finale ;
-#   4. polissage graphique des figures destinées aux livrables ;
-#   5. génération du rapport et de la présentation.
+#   4. vérification et compléments du plan de dépouillement ;
+#   5. polissage graphique des figures destinées aux livrables ;
+#   6. génération du rapport et de la présentation.
 # =============================================================================
 
 options(
