@@ -93,6 +93,13 @@ purrr::walk(dirs, fs::dir_create)
 
 fix_text <- function(x) {
   x <- as.character(x)
+
+  # Certains exports encodés en ISO-8859-1 contiennent en pratique des octets
+  # Windows-1252. Les deux remplacements ci-dessous restaurent notamment
+  # « œuvre », qui sinon devient un caractère de contrôle invisible ou « � ».
+  x <- stringr::str_replace_all(x, "\u009c", "œ")
+  x <- stringr::str_replace_all(x, "\u008c", "Œ")
+
   x <- stringr::str_replace_all(x, "\u0092||’", "'")
   x <- stringr::str_replace_all(x, "\u0091|‘", "'")
   x <- stringr::str_replace_all(x, "\u0093|“", "\"")
