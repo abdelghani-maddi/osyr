@@ -164,8 +164,34 @@ add_figure_if_exists <- function(doc, path, title, caption = NULL) {
 }
 
 add_cover <- function(doc) {
-  doc <- officer::body_add_par(doc, "OSYR", style = "heading 1")
-  doc <- officer::body_add_par(doc, "Rapport d'analyse de l'enquête auprès des doctorants", style = "heading 2")
+  # La couverture n'utilise pas les styles Heading : elle reste ainsi hors de la
+  # numérotation et du sommaire automatique.
+  doc <- officer::body_add_fpar(
+    doc,
+    officer::fpar(
+      officer::ftext(
+        "OSYR",
+        officer::fp_text(
+          font.size = 24, bold = TRUE,
+          color = cols[["dark_green"]]
+        )
+      )
+    )
+  )
+
+  doc <- officer::body_add_fpar(
+    doc,
+    officer::fpar(
+      officer::ftext(
+        "Rapport d'analyse de l'enquête auprès des doctorants",
+        officer::fp_text(
+          font.size = 18, bold = TRUE,
+          color = cols[["dark_green"]]
+        )
+      )
+    )
+  )
+
   doc <- officer::body_add_par(
     doc,
     "Science ouverte, formations, connaissances, pratiques, intentions et perceptions",
@@ -173,15 +199,35 @@ add_cover <- function(doc) {
   )
   doc <- officer::body_add_par(
     doc,
-    paste0("Version générée le ", format(Sys.Date(), "%d/%m/%Y")),
+    paste0("Version du ", format(Sys.Date(), "%d/%m/%Y")),
     style = "Normal"
   )
   doc <- officer::body_add_par(doc, " ", style = "Normal")
   doc <- officer::body_add_par(
     doc,
-    "Ce rapport présente les résultats de l'enquête OSYR selon les axes définis dans le plan de dépouillement de septembre 2026. Les analyses complémentaires et les diagnostics méthodologiques sont documentés dans les annexes et les tables associées.",
+    "Ce rapport présente les résultats de l'enquête OSYR selon le plan de dépouillement arrêté en septembre 2026.",
     style = "Normal"
   )
+  officer::body_add_break(doc)
+}
+
+add_native_toc <- function(doc) {
+  # Sommaire Word natif. Il est construit à partir des Heading 1 uniquement afin
+  # de conserver un sommaire court ; Word met à jour les numéros de page lors de
+  # l'ouverture / actualisation des champs.
+  doc <- officer::body_add_fpar(
+    doc,
+    officer::fpar(
+      officer::ftext(
+        "Sommaire",
+        officer::fp_text(
+          font.size = 18, bold = TRUE,
+          color = cols[["dark_green"]]
+        )
+      )
+    )
+  )
+  doc <- officer::body_add_toc(doc, level = 1)
   officer::body_add_break(doc)
 }
 
@@ -191,6 +237,7 @@ add_cover <- function(doc) {
 
 doc <- officer::read_docx()
 doc <- add_cover(doc)
+doc <- add_native_toc(doc)
 
 # Résumé
 summary_lines <- executive_summary_text(plan_rapport)
