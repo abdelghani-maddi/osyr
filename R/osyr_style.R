@@ -226,7 +226,7 @@ osyr_final_plan_registry <- function() {
     2, "Connaissances",
     "Mesurer le niveau et le type de connaissances déclarées.",
     "Connaissance et usage Q5 ; différences selon formation, volume, type de dispositif, année, discipline et environnement ; représentations spontanées Q3.",
-    "Q5 item par item et par familles, gap connaissance-usage, analyse des trois mots Q3, liens Q4-Q5 et croisements avec formation, année, discipline et environnement.",
+    "Q5 item par item et par familles, écart connaissance-usage, analyse des trois mots Q3, liens Q4-Q5 et croisements avec formation, année, discipline et environnement.",
     3, "Pratiques",
     "Comparer les pratiques de recherche et les usages effectifs de la science ouverte.",
     "Pratiques Q4 ; écart entre connaissances et usages Q5 ; facteurs associés aux pratiques ; liens avec année, discipline, environnement et formation.",
@@ -262,8 +262,8 @@ osyr_figure_catalog <- function() {
     1, "Parcours de formation", "Dispositifs Q8 par discipline détaillée", "02d_heatmap_dispositifs_q8_par_discipline_detail.png", "final", 2,
     1, "Parcours de formation", "MOOC et autoformation par discipline détaillée", "02e_mooc_autoformation_par_discipline_detail.png", "final", 3,
     2, "Connaissances", "Connaissance des notions de science ouverte par discipline détaillée", "14b_heatmap_q5_connaissance_par_discipline_detail.png", "final", 1,
-    2, "Connaissances", "Gap connaissance-usage par discipline détaillée", "17a_gap_connaissance_usage_par_discipline_detail.png", "final", 1,
-    2, "Connaissances", "Gap connaissance-usage par famille d'objets", "17b_gap_par_famille_objet_discipline_detail.png", "final", 2,
+    2, "Connaissances", "Écart connaissance-usage par discipline détaillée", "17a_gap_connaissance_usage_par_discipline_detail.png", "final", 1,
+    2, "Connaissances", "Écart connaissance-usage par famille d'objets", "17b_gap_par_famille_objet_discipline_detail.png", "final", 2,
     3, "Pratiques", "Usage des outils de science ouverte par discipline détaillée", "15b_heatmap_q5_usage_par_discipline_detail.png", "final", 1,
     3, "Pratiques", "Connaissance et usage Q5 par discipline détaillée", "16c_scores_q5_par_discipline_detail_exposition.png", "final", 2,
     4, "Intentions et attitudes", "Robustesse des associations avec l'exposition aux dispositifs", "01_robustesse_scores_pondere_non_pondere.png", "complements", 1,
@@ -396,7 +396,7 @@ osyr_slide_note <- function(file, current_caption = NA_character_) {
 # Titres et note méthodologique
 # -----------------------------------------------------------------------------
 
-osyr_report_title <- function() "OSYR — Rapport d'analyse finale"
+osyr_report_title <- function() "OSYR — Rapport d'analyse de l'enquête"
 osyr_ppt_title <- function() "OSYR — Résultats de l'enquête doctorants"
 
 osyr_method_note <- function() {
