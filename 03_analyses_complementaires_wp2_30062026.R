@@ -464,7 +464,10 @@ score_labels <- tibble::tribble(
   "score_q13_dont_know", "Intentions : je ne sais pas", "Incertitude",
   "score_q12_incitation", "Environnement perçu comme incitatif", "Environnement",
   "score_q12_frein", "Environnement perçu comme un frein", "Environnement",
-  "score_q15_agreement", "Accord avec les affirmations SO", "Représentations",
+  # Q15 est interprété selon trois dimensions cohérentes. Le score global
+  # score_q15_agreement reste éventuellement présent dans la base pour
+  # compatibilité avec d'anciennes sorties, mais il n'entre plus dans les
+  # modèles de robustesse car il mélange des affirmations de sens différent.
   "score_q15_benefits", "Bénéfices scientifiques perçus", "Représentations",
   "score_q15_constraints", "Contraintes institutionnelles/économiques", "Représentations",
   "score_q15_risks", "Risques individuels perçus", "Représentations"
