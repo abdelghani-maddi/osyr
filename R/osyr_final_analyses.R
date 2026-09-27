@@ -356,7 +356,7 @@ if (has_rows(q11_long) && "agree" %in% names(q11_long)) {
     dplyr::filter(!is.na(item_label)) |>
     dplyr::group_by(item_label) |>
     dplyr::summarise(
-      n = dplyr::n(),
+      n = sum(!is.na(agree)),
       pct_agree_w = w_prop(agree, .weight),
       .groups = "drop"
     ) |>
