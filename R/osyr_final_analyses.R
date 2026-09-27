@@ -299,7 +299,7 @@ if (has_rows(q8_devices_long) && "year" %in% names(q8_devices_long)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_02_dispositifs_q8_par_annee.png", 1, "Parcours de formation",
       "Types de dispositifs selon l'année de thèse",
-      "Vue détaillée des dispositifs déclarés, sans agrégation.",
+      "Répartition des modalités de formation et d'autoformation déclarées à Q8.",
       width = 13.5, height = 7.8, priority = 2
     )
   }
@@ -441,7 +441,7 @@ if (has_rows(q5_long) && all(c("known_well", "used") %in% names(q5_long))) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_10_q5_connaissance_usage_items.png", 2, "Connaissances",
       "Connaissance et usage des outils de science ouverte",
-      "Dumbbell chart item par item : connaissance déclarée et usage déclaré.",
+      "Écart entre bonne connaissance déclarée et usage déclaré pour chaque notion ou outil.",
       width = 13, height = 8.8, priority = 1
     )
   }
@@ -521,7 +521,7 @@ if ("year" %in% names(df)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_12_scores_par_annee.png", 2, "Connaissances",
       "Connaissance, usage et intentions selon l'année de thèse",
-      "Figure utile pour distinguer effet d'avancement doctoral et exposition aux dispositifs.",
+      "Évolution des scores de connaissance, d'usage et d'intentions selon l'année de thèse.",
       width = 12.5, height = 6.8, priority = 2
     )
   }
@@ -556,7 +556,7 @@ if (has_rows(q4_long) && "positive" %in% names(q4_long)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_20_pratiques_q4_items.png", 3, "Pratiques",
       "Pratiques de recherche déjà réalisées",
-      "État des pratiques de recherche hors ou en amont de la science ouverte.",
+      "Part des répondants déclarant avoir déjà réalisé chacune des pratiques de recherche Q4.",
       width = 12.5, height = 7.8, priority = 1
     )
   }
@@ -589,7 +589,7 @@ if (has_rows(q5_long) && "used" %in% names(q5_long) && "year" %in% names(q5_long
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_21_usages_q5_par_annee.png", 3, "Pratiques",
       "Usages Q5 selon l'année de thèse",
-      "Permet de repérer les usages qui apparaissent surtout avec l'avancement doctoral.",
+      "Usages déclarés des outils de science ouverte selon l'année de thèse.",
       width = 14, height = 7.4, priority = 2
     )
   }
@@ -627,7 +627,7 @@ if (has_rows(q13_long) && "yes" %in% names(q13_long)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_30_intentions_q13_par_exposition.png", 4, "Intentions et attitudes",
       "Intentions de pratiques ouvertes selon l'exposition",
-      "Compare les intentions déclarées des répondants exposés et non exposés à un dispositif organisé.",
+      "Part de réponses positives à Q13 selon l'exposition aux dispositifs.",
       width = 13, height = 8.2, priority = 1
     )
   }
@@ -653,7 +653,7 @@ if (has_rows(q13_long) && "yes" %in% names(q13_long)) {
       figure_log[[length(figure_log) + 1]] <- save_plot_final(
         p, "final_31_intentions_q13_je_ne_sais_pas.png", 4, "Intentions et attitudes",
         "Incertitudes déclarées sur les intentions",
-        "Met en évidence les pratiques pour lesquelles l'intention est plus fragile ou moins stabilisée.",
+        "Part de réponses « je ne sais pas » pour chaque intention Q13.",
         width = 13, height = 8.2, priority = 2
       )
     }
@@ -726,7 +726,7 @@ if (has_rows(q15_long) && "agree" %in% names(q15_long)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_40_perceptions_q15_par_exposition.png", 5, "Perceptions",
       "Perceptions de la science ouverte selon l'exposition",
-      "Permet de distinguer les représentations partagées et celles associées à l'exposition aux dispositifs.",
+      "Part d'accord avec chaque affirmation Q15 selon l'exposition aux dispositifs.",
       width = 13, height = 8.5, priority = 1
     )
   }
@@ -768,7 +768,7 @@ if (has_rows(q12_long) && all(c("incitation", "frein") %in% names(q12_long))) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_41_environnement_q12_par_exposition.png", 5, "Perceptions",
       "Environnement perçu : incitations et freins",
-      "Lecture croisée des dimensions environnementales perçues comme favorables ou défavorables.",
+      "Incitations et freins perçus dans l'environnement de recherche selon l'exposition aux dispositifs.",
       width = 14, height = 7.5, priority = 2
     )
   }
