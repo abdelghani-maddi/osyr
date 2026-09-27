@@ -314,19 +314,10 @@ for (sec in sort(unique(plan_rapport$section))) {
   }
 }
 
-# Conclusion
+# Discussion et conclusion
 doc <- officer::body_add_break(doc)
-doc <- officer::body_add_par(doc, "Conclusion", style = "heading 1")
-doc <- officer::body_add_par(
-  doc,
-  paste(
-    "L'enquête met en évidence une familiarisation importante des doctorants avec plusieurs dimensions de la science ouverte, mais également des écarts persistants entre connaissance, usage et mise en pratique.",
-    "Les différences associées à l'exposition aux dispositifs de formation doivent être interprétées en tenant compte des disciplines, de l'année de thèse et des différences de composition entre groupes.",
-    "Les analyses de robustesse permettent de distinguer les résultats relativement stables de ceux qui demeurent sensibles aux choix de pondération ou de spécification."
-  ),
-  style = "Normal"
-)
-doc <- officer::body_add_par(doc, osyr_method_note(), style = "Normal")
+doc <- officer::body_add_par(doc, "Discussion et conclusion", style = "heading 1")
+doc <- add_text_paragraphs(doc, discussion_summary_text())
 
 out_docx <- file.path(dirs$report, "rapport_final_osyr.docx")
 print(doc, target = out_docx)
