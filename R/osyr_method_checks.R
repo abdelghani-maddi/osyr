@@ -322,10 +322,33 @@ for (path in model_files) {
   m <- readr::read_csv(path, show_col_types = FALSE)
   nm <- basename(path)
 
-  if (all(c("estimate", "conf.low", "conf.high") %in% names(m))) {
+  estimate_col <- dplyr::case_when(
+    "estimate" %in% names(m) ~ "estimate",
+    "estimate_pp" %in% names(m) ~ "estimate_pp",
+    "estimate_pp_approx" %in% names(m) ~ "estimate_pp_approx",
+    TRUE ~ NA_character_
+  )
+  low_col <- dplyr::case_when(
+    "conf.low" %in% names(m) ~ "conf.low",
+    "conf_low_pp" %in% names(m) ~ "conf_low_pp",
+    "conf_low_pp_approx" %in% names(m) ~ "conf_low_pp_approx",
+    TRUE ~ NA_character_
+  )
+  high_col <- dplyr::case_when(
+    "conf.high" %in% names(m) ~ "conf.high",
+    "conf_high_pp" %in% names(m) ~ "conf_high_pp",
+    "conf_high_pp_approx" %in% names(m) ~ "conf_high_pp_approx",
+    TRUE ~ NA_character_
+  )
+
+  if (!is.na(estimate_col) && !is.na(low_col) && !is.na(high_col)) {
+    est <- suppressWarnings(as.numeric(m[[estimate_col]]))
+    low <- suppressWarnings(as.numeric(m[[low_col]]))
+    high <- suppressWarnings(as.numeric(m[[high_col]]))
+
     bad_ci <- sum(
-      !is.na(m$estimate) & !is.na(m$conf.low) & !is.na(m$conf.high) &
-        (m$conf.low > m$estimate | m$estimate > m$conf.high),
+      !is.na(est) & !is.na(low) & !is.na(high) &
+        (low > est | est > high),
       na.rm = TRUE
     )
 
