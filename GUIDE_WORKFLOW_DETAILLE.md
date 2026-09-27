@@ -1,98 +1,115 @@
 # Guide du workflow OSYR
 
-## 00 — Script maître
+Version du 27 septembre 2026.
 
-`00_lancer_workflow_complet.R` est le point d'entrée du traitement. Il appelle les scripts dans l'ordre prévu et permet d'activer ou de désactiver certaines étapes.
+## Principe général
 
-## 01 — Analyse principale
+Le workflow sépare volontairement **calcul**, **contrôle**, **synthèse**, **mise en forme graphique** et **publication**. Cette séparation évite qu'une modification esthétique change un résultat statistique et permet de retrouver l'étape à l'origine de chaque tableau du rapport.
 
-`01_analyse_osyr_base_et_modeles.R` assure :
+## 00 — Orchestration
 
-1. la lecture de la base et de la DATAMAP ;
-2. le nettoyage des noms de variables et des libellés ;
-3. la construction des variables analytiques ;
-4. la mise au format long des batteries ;
-5. les descriptifs pondérés ;
-6. la construction des scores ;
-7. les sorties par année, discipline, langue et exposition ;
-8. les contrôles qualité.
+`00_lancer_workflow_complet.R` appelle les scripts dans l'ordre requis. Après une modification méthodologique, un rerun complet est recommandé.
 
-La DATAMAP V2 est la référence pour les libellés des questions et des modalités.
+Les scripts 02 et 04 sont historiques et désactivés par défaut.
 
-### Pondération
+## 01 — Socle analytique
 
-Une seule colonne est utilisée comme poids d'enquête : `Poids`, recodée en `.weight`.
+`01_analyse_osyr_base_et_modeles.R` :
 
-`weight_none = 1` est une variable technique servant au scénario non pondéré. Elle ne constitue pas une pondération supplémentaire.
+1. lit la base et la DATAMAP ;
+2. nettoie les noms et libellés ;
+3. crée `.weight`, année, discipline, langue et exposition ;
+4. prépare Q3, Q4, Q5, Q8, Q9, Q11, Q12, Q13, Q14 et Q15 au format adapté ;
+5. construit les scores ;
+6. produit les descriptifs de référence ;
+7. contrôle les dénominateurs, la cohérence Q8 et les libellés.
 
-## 02 — Rapport Word historique
+Il correspond au socle commun des cinq blocs substantiels du plan.
 
-`02_generer_rapport_word.R` lit les sorties du script 01. Il est conservé pour compatibilité mais n'est plus le livrable principal.
+## 03 — Modèles et robustesse
 
-## 03 — Analyses complémentaires
+`03_analyses_complementaires_wp2_30062026.R` :
 
-`03_analyses_complementaires_wp2_30062026.R` ajoute :
+- compare pondéré/non pondéré ;
+- compare discipline détaillée/agrégée ;
+- ajuste les modèles sur année, discipline et langue ;
+- réalise les modèles item par item ;
+- applique la correction FDR ;
+- calcule la balance pondérée des groupes ;
+- produit les analyses Q8 selon langue et discipline ;
+- génère les synthèses de robustesse.
 
-- la comparaison pondéré / non pondéré ;
-- la comparaison discipline détaillée / discipline agrégée ;
-- les modèles ajustés sur les scores ;
-- les modèles item par item ;
-- les intervalles de confiance ;
-- la correction FDR ;
-- les diagnostics de composition des groupes ;
-- les analyses détaillées de Q8 ;
-- les synthèses de robustesse.
+Les modèles Q8 binaires sont logistiques et rapportés en odds ratios. Les autres indicateurs binaires item par item peuvent être analysés par modèle linéaire de probabilité afin d'obtenir un écart ajusté en points.
 
-Le script ne détecte plus automatiquement des « poids » à partir du nom des colonnes. Les seuls scénarios sont :
+## R/osyr_final_analyses.R — synthèses des livrables
 
-- non pondéré : `weight_none = 1` ;
-- pondéré : `.weight`, issu de `Poids`.
+Ce script restructure les résultats autour des sept blocs du rapport : formation, connaissances, pratiques, intentions, perceptions, profils et précautions méthodologiques.
 
-Les observations dont `.weight` est manquant ou non positif sont exclues des analyses pondérées.
+Il contient aussi l'ACP exploratoire pondérée et le k-means descriptif.
 
-## R/osyr_final_analyses.R
+## R/osyr_plan_depouillement_analyses.R — audit du plan
 
-Cette étape prépare les tables et figures utilisées dans le rapport final : trajectoires par année de thèse, croisements Q5, intentions, perceptions, profils exploratoires et diagnostics méthodologiques.
+Ce script complète les points insuffisamment couverts ailleurs :
 
-## R/osyr_plan_depouillement_analyses.R
+- Q9 et organisateurs ;
+- Q10 et intensité ;
+- croisements Q11 ;
+- familles Q5 et liens Q4-Q5 ;
+- modèles élargis d'usage ;
+- Q14 ;
+- Q7 ;
+- dimensions Q15 ;
+- plateformes d'accès non officielles ;
+- Q3 ;
+- CAH ;
+- indice cumulatif.
 
-Cette étape confronte les sorties au plan de dépouillement de septembre 2026 et ajoute les analyses qui n'étaient pas encore couvertes : Q9, Q10 détaillé, croisements Q11, familles Q5, liens Q4-Q5, Q14, Q7, dimensions positives/négatives de Q15, indice cumulatif, analyse des mots Q3 lorsque les réponses sont disponibles, et CAH exploratoire.
+Il génère `couverture_plan_depouillement_detaillee.csv`. Une analyse n'y est marquée comme couverte que si une sortie correspondante est produite.
 
-Elle produit notamment `couverture_plan_depouillement_detaillee.csv`. Le statut d'un point dépend de l'existence réelle des variables et sorties, et non du nombre de graphiques.
+## R/osyr_figure_polish.R — figures de publication
 
-## R/osyr_figure_polish.R
+Cette étape **ne recalcule pas les statistiques**. Elle relit les tables et produit des figures adaptées à la largeur du rapport et aux slides.
 
-Cette étape reprend les tables finales et régénère les figures destinées au rapport et à la présentation dans un format plus lisible.
+Les titres et notes de lecture sont centralisés dans `R/osyr_style.R`. Les formulations de production (« figure utile », « vue transversale », etc.) ne doivent pas apparaître dans le rapport final.
 
-## 05 — Rapport final
+## R/osyr_report_text.R — rédaction déterministe
 
-`05_produire_rapport_final.R` génère le rapport principal et l'annexe graphique.
+Ce fichier transforme les résultats calculés en paragraphes. Les phrases sont conditionnées à la présence des tables et colonnes attendues.
 
-## 06 — Présentation finale
+Il ne contient pas d'appel à un modèle génératif et ne crée aucune estimation nouvelle.
 
-`06_generer_presentation_finale.R` génère le diaporama à partir de la même sélection de résultats.
+## 05 — Rapport Word
 
-## 99 — Session info
+`05_produire_rapport_final.R` assemble :
 
-`99_session_info.R` conserve les versions de R et des packages utilisés.
+- couverture ;
+- résumé des principaux résultats ;
+- méthode ;
+- cinq blocs de résultats substantiels ;
+- profils et analyses transversales ;
+- précautions méthodologiques ;
+- discussion et conclusion.
 
-## Variables et questions couvertes
+Les figures principales sont sélectionnées via le catalogue. Les figures restantes vont dans l'annexe graphique.
 
-Le traitement s'appuie notamment sur :
+## 06 — Présentation
 
-- Q1 : année de thèse ;
-- Q2 : domaine scientifique principal ;
-- Q3 : mots ou expressions spontanés associés à la science ouverte, lorsque les colonnes textuelles sont présentes ;
-- Q4 : pratiques de recherche déjà réalisées ;
-- Q5 : connaissance et usage de quinze outils ou pratiques ;
-- Q7 : politique ou directives de l'établissement ;
-- Q8 : dispositifs suivis ;
-- Q9 : organismes organisateurs ;
-- Q10 : nombre de formations ou actions ;
-- Q11 : appréciation des formations ;
-- Q12 : freins et incitations ;
-- Q13 : intentions ;
-- Q14 : raisons de non-adoption ;
-- Q15 : représentations de la science ouverte.
+`06_generer_presentation_finale.R` utilise le même catalogue et les mêmes synthèses que le rapport. Les notes méthodologiques des figures apparaissent en bas de slide et non comme sous-titres techniques.
 
-Les modalités exactes sont celles de la DATAMAP V2 placée dans `data/BJ30232 - DATAMAP V2.xlsx`.
+## 99 — Reproductibilité
+
+`99_session_info.R` conserve `sessionInfo()` et la liste des packages installés.
+
+## Repères du plan de dépouillement
+
+| Bloc | Questions principales | Scripts |
+| --- | --- | --- |
+| Parcours de formation | Q7-Q11 | 01, 03, final, plan |
+| Connaissances | Q5, Q3 | 01, final, plan |
+| Pratiques | Q4, usage Q5 | 01, 03, final, plan |
+| Intentions | Q13, Q14 | 01, 03, final, plan |
+| Perceptions | Q12, Q15 | 01, 03, final, plan |
+| Profils | scores transversaux | final, plan |
+| Robustesse | poids, FDR, balance, sensibilité | 03, plan |
+
+Pour le détail sortie par sortie, voir `docs/CARTOGRAPHIE_CODE_PLAN_DEPOUILLEMENT.md`.
