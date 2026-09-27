@@ -1,12 +1,28 @@
 # =============================================================================
-# Synthèses factuelles pour le rapport final OSYR
+# SCRIPT — RÉDIGER LES RÉSULTATS À PARTIR DES TABLES DU WORKFLOW
+# Version 2026-09-27
 # =============================================================================
-# Les fonctions de ce fichier transforment les tableaux produits par le workflow
-# en courts résumés factuels. Elles ne remplacent pas l'interprétation
-# scientifique : elles servent à produire un premier niveau de rédaction fondé
-# exclusivement sur les valeurs calculées par les scripts.
+# RÔLE DANS LE WORKFLOW
+#   Produire une rédaction analytique déterministe à partir des résultats
+#   effectivement calculés. Aucune valeur n'est saisie en dur et aucune
+#   conclusion n'est générée en l'absence de la table correspondante.
+#
+# CORRESPONDANCE AVEC LE PLAN
+#   section_summary_text(1) : parcours de formation ;
+#   section_summary_text(2) : connaissances ;
+#   section_summary_text(3) : pratiques ;
+#   section_summary_text(4) : intentions et attitudes ;
+#   section_summary_text(5) : perceptions ;
+#   section_summary_text(6) : profils et analyses transversales ;
+#   section_summary_text(7) : précautions méthodologiques.
+#
+# RÈGLES DE RÉDACTION
+#   - distinguer descriptifs, associations ajustées et analyses exploratoires ;
+#   - citer estimations et IC à 95 % lorsque les modèles sont mobilisés ;
+#   - ne pas transformer une association en effet causal ;
+#   - ne pas interpréter un résultat absent, non calculé ou non robuste ;
+#   - éviter le vocabulaire de production du workflow dans le rapport final.
 # =============================================================================
-
 report_read_table <- function(name, dir = file.path(osyr_dirs()$report, "tables")) {
   path <- file.path(dir, paste0(name, ".csv"))
   if (!file.exists(path)) return(tibble::tibble())

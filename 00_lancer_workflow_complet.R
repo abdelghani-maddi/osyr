@@ -1,15 +1,21 @@
 # =============================================================================
 # SCRIPT 00 — LANCER LE WORKFLOW COMPLET OSYR
-# Version production finale — 27/09/2026 v4
+# Version production finale — 27/09/2026 v5
 # =============================================================================
-# Point d'entrée recommandé.
-# Le workflow distingue explicitement :
-#   1. analyses principales ;
-#   2. analyses complémentaires ;
-#   3. analyses de production finale ;
-#   4. vérification et compléments du plan de dépouillement ;
-#   5. polissage graphique des figures destinées aux livrables ;
-#   6. génération du rapport et de la présentation.
+# RÔLE
+#   Point d'entrée unique de la chaîne d'analyse OSYR.
+#
+# LOGIQUE DU PLAN DE DÉPOUILLEMENT
+#   Étape 1 — Construire la base analytique et les variables du questionnaire.
+#   Étape 2 — Tester la robustesse des résultats et les effets de composition.
+#   Étape 3 — Produire les analyses transversales nécessaires aux livrables.
+#   Étape 4 — Vérifier point par point la couverture du plan de dépouillement.
+#   Étape 5 — Contrôler l'intégrité méthodologique avant toute publication.
+#   Étape 6 — Régénérer les figures dans leur forme éditoriale finale.
+#   Étape 7 — Produire le rapport Word et la présentation PowerPoint.
+#
+# Les scripts 02 et 04 sont des versions historiques. Ils restent disponibles
+# pour comparaison mais ne sont pas exécutés par défaut.
 # =============================================================================
 
 options(
@@ -29,6 +35,7 @@ RUN_03_ANALYSES_COMPLEMENTAIRES <- TRUE
 RUN_04_POWERPOINT_EXISTANT      <- FALSE
 RUN_FINAL_ANALYSES              <- TRUE
 RUN_PLAN_DEPOUILLEMENT           <- TRUE
+RUN_METHOD_CHECKS                <- TRUE
 RUN_FIGURE_POLISH               <- TRUE
 RUN_05_RAPPORT_FINAL            <- TRUE
 RUN_06_PRESENTATION_FINALE      <- TRUE
@@ -88,6 +95,12 @@ if (RUN_FINAL_ANALYSES) {
 
 if (RUN_PLAN_DEPOUILLEMENT) {
   run_script(file.path("R", "osyr_plan_depouillement_analyses.R"))
+}
+
+# Contrôle bloquant des conventions méthodologiques : pondération, bornes des
+# scores, cohérence des batteries, modèles et catalogue final.
+if (RUN_METHOD_CHECKS) {
+  run_script(file.path("R", "osyr_method_checks.R"))
 }
 
 # Cette étape reprend les tables calculées et régénère les figures principales

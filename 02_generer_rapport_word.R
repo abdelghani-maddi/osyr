@@ -1,37 +1,26 @@
 # =============================================================================
-# SCRIPT 02 — GÉNÉRATION DU RAPPORT WORD OSYR
+# SCRIPT 02 — RAPPORT WORD HISTORIQUE (CONSERVÉ POUR COMPATIBILITÉ)
 # =============================================================================
-# Rôle dans le workflow
-#   Ce script lit les sorties de `outputs_osyr_v2_final/` produites par le
-#   script 01 et génère un rapport Word commenté, modifiable et partageable.
+# STATUT
+#   Version antérieure du rapport Word. Ce script n'est plus exécuté par défaut
+#   dans le workflow de production finale. Le livrable de référence est généré
+#   par 05_produire_rapport_final.R.
 #
-# À lancer seul si le script 01 a déjà été exécuté :
-#   source("02_generer_rapport_word.R")
+# UTILITÉ
+#   Conserver une trace reproductible de l'ancienne chaîne de production et
+#   permettre des comparaisons avec les sorties historiques.
 #
-# Sortie principale :
-#   outputs_osyr_v2_rapport_word/rapport_commenté_OSYR_V2_v4_analytique_approfondi.docx
+# PRÉREQUIS
+#   01_analyse_osyr_base_et_modeles.R
+#
+# SORTIE HISTORIQUE
+#   outputs_osyr_v2_rapport_word/
+#
+# MÉTHODE
+#   Les analyses restent descriptives et associatives. La langue du questionnaire
+#   est une variable de contexte et ne doit pas être interprétée comme une mesure
+#   de nationalité ou d'origine.
 # =============================================================================
-
-# =============================================================================
-# OSYR — Génération d'un rapport Word commenté
-# Version : 2026-06-19 — v4 analytique approfondie
-#
-# À lancer APRÈS le workflow d'analyse final :
-#   source("01_analyse_osyr_base_et_modeles.R")
-#
-# Ce script :
-#   1) lit les sorties déjà produites dans outputs_osyr_v2_final/ ;
-#   2) régénère quelques graphiques plus lisibles pour le rapport Word ;
-#   3) construit un rapport Word commenté avec figures, tableaux et interprétation ;
-#   4) exporte un .docx prêt à relire/compléter.
-#   5) ajoute une lecture analytique plus développée et un atlas de figures complémentaires.
-#
-# Important :
-#   - Les analyses restent descriptives/associatives, non causales.
-#   - La variable langue du questionnaire est interprétée prudemment comme proxy
-#     de profil international, et non comme mesure de nationalité.
-# =============================================================================
-
 # -----------------------------------------------------------------------------
 # 0. Packages
 # -----------------------------------------------------------------------------

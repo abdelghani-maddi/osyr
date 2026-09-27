@@ -1,16 +1,23 @@
 # =============================================================================
-# SCRIPT 05 — PRODUIRE LE RAPPORT FINAL OSYR
-# Version 2026-09-21 v5
+# SCRIPT 05 — PRODUIRE LE RAPPORT WORD FINAL OSYR
+# Version 2026-09-27
 # =============================================================================
-# Génère deux documents :
-#   1) un rapport principal structuré et rédigé à partir des sorties du workflow ;
-#   2) une annexe graphique contenant les figures complémentaires.
+# RÔLE DANS LE WORKFLOW
+#   Assembler le rapport destiné à la lecture scientifique à partir des tables,
+#   textes analytiques et figures validés en amont.
 #
-# Le rapport principal ne reprend plus les éléments de suivi interne
-# ("couverture analytique", "points à rédiger", catalogue technique, etc.).
-# Les diagnostics restent disponibles dans outputs_osyr_rapport_final/tables/.
+# CORRESPONDANCE AVEC LE PLAN
+#   Le corps suit les sept blocs du plan de dépouillement. Les diagnostics
+#   techniques et la matrice de couverture restent dans les tables de sortie et
+#   ne sont pas présentés comme des résultats de recherche.
+#
+# RÈGLES ÉDITORIALES
+#   - sélectionner un nombre limité de figures centrales ;
+#   - séparer résultats, méthode et discussion ;
+#   - conserver les notes méthodologiques utiles à l'interprétation sans
+#     reprendre le vocabulaire interne du workflow ;
+#   - placer les figures complémentaires dans l'annexe graphique.
 # =============================================================================
-
 options(
   scipen = 999,
   dplyr.summarise.inform = FALSE,
@@ -71,10 +78,7 @@ figure_catalog <- figure_catalog |>
   dplyr::mutate(
     section = as.integer(section),
     path = as.character(path),
-    caption = dplyr::case_when(
-      stringr::str_detect(caption, "Figure issue des sorties") ~ "Source : enquête OSYR, données pondérées.",
-      TRUE ~ as.character(caption)
-    ),
+    caption = as.character(caption),
     available = !is.na(path) & file.exists(path)
   ) |>
   dplyr::filter(available) |>
@@ -175,7 +179,7 @@ add_cover <- function(doc) {
   doc <- officer::body_add_par(doc, " ", style = "Normal")
   doc <- officer::body_add_par(
     doc,
-    "Ce document présente les résultats issus du plan de dépouillement final. Les analyses détaillées et les diagnostics méthodologiques sont conservés dans les sorties du workflow et dans l'annexe graphique.",
+    "Ce rapport présente les résultats de l'enquête OSYR selon les axes définis dans le plan de dépouillement de septembre 2026. Les analyses complémentaires et les diagnostics méthodologiques sont documentés dans les annexes et les tables associées.",
     style = "Normal"
   )
   officer::body_add_break(doc)

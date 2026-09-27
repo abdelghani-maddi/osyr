@@ -1,43 +1,21 @@
 # =============================================================================
-# SCRIPT 04 — GÉNÉRATION DU POWERPOINT OSYR
+# SCRIPT 04 — PRÉSENTATION POWERPOINT HISTORIQUE (CONSERVÉE POUR COMPATIBILITÉ)
 # =============================================================================
-# Version v3 — 06/07/2026
+# STATUT
+#   Version antérieure du diaporama fondée principalement sur les sorties du
+#   script 03. Elle n'est plus exécutée par défaut. La présentation de référence
+#   est produite par 06_generer_presentation_finale.R.
 #
-# Ce script assemble les sorties du script 03 dans un PPT. Il n'a plus besoin
-# du package `rvg`, car les figures sont insérées comme images PNG. Cela évite
-# l'erreur observée lorsque RStudio essaie d'installer `rvg` alors que des
-# packages sont déjà chargés (j'ai un peu galéré pour trouver celle-ci :)).
-
+# UTILITÉ
+#   Conserver une sortie comparable aux présentations intermédiaires produites
+#   pendant la phase d'exploration et de discussion WP2.
+#
+# PRÉREQUIS
+#   03_analyses_complementaires_wp2_30062026.R
+#
+# SORTIE HISTORIQUE
+#   outputs_osyr_v2_ppt/
 # =============================================================================
-# Rôle dans le workflow
-#   Ce script construit une présentation PowerPoint à partir des analyses
-#   complémentaires. La logique est : une diapo = une question = une figure/table
-#   = un message à retenir.
-#
-# Prérequis :
-#   Le script 03 doit avoir produit `outputs_osyr_v2_complements_30062026/`.
-#   Si les sorties n'existent pas, le script essaie de lancer le script 03.
-#
-# À lancer seul :
-#   source("04_generer_presentation_powerpoint.R")
-#
-# Sortie principale :
-#   outputs_osyr_v2_ppt/OSYR_exploration_premium_v2_complements_30062026.pptx
-# =============================================================================
-
-# =============================================================================
-# OSYR — PowerPoint premium v2 avec analyses complémentaires WP2 30/06/2026
-# Version : 2026-06-30
-#
-# À lancer depuis la racine du projet :
-#   source("04_generer_presentation_powerpoint.R")
-#
-# Ce script :
-#   1) lance le workflow complémentaire si besoin ;
-#   2) génère un PPT propre centré sur les nouvelles questions discutées ;
-#   3) garde une logique : 1 question / 1 figure ou table / 1 message.
-# =============================================================================
-
 required_packages <- c("tidyverse", "officer", "flextable", "fs", "glue", "scales")
 missing_required <- required_packages[
   !purrr::map_lgl(required_packages, requireNamespace, quietly = TRUE)

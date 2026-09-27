@@ -1,14 +1,24 @@
 # =============================================================================
-# Analyses et figures pour la production finale OSYR
-# =============================================================================
-# Ce fichier est appelé par les scripts 05 et 06.
-# Il part des sorties des scripts 01 et 03 et produit une couche d'analyses
-# supplémentaires alignée sur le plan de dépouillement de septembre 2026.
+# SCRIPT — ANALYSES TRANSVERSALES POUR LES LIVRABLES FINAUX
+# Version 2026-09-27
 #
-# Les figures produites ici ne remplacent pas les figures exploratoires : elles
-# servent à alimenter le rapport final et la présentation finale.
+# RÔLE DANS LE WORKFLOW
+#   Reprendre les sorties des scripts 01 et 03 pour construire les tableaux
+#   transversaux directement utilisés dans le rapport et la présentation.
+#
+# CORRESPONDANCE AVEC LE PLAN DE DÉPOUILLEMENT
+#   1. Parcours de formation : exposition, Q8, Q10, Q11.
+#   2. Connaissances : connaissance, usage et gap Q5.
+#   3. Pratiques : Q4, usages Q5 et évolution selon l'année de thèse.
+#   4. Intentions : Q13, incertitudes et articulation connaissance-usage.
+#   5. Perceptions : Q12 et Q15.
+#   6. Profils : autoformation, ACP et classifications exploratoires.
+#   7. Méthode : robustesse et diagnostics destinés à l'interprétation.
+#
+# Les calculs de ce script restent descriptifs ou exploratoires ; les modèles
+# ajustés et les tests formels sont produits par le script 03 et par
+# osyr_plan_depouillement_analyses.R.
 # =============================================================================
-
 options(
   scipen = 999,
   dplyr.summarise.inform = FALSE,
@@ -114,7 +124,7 @@ copy_existing_figures <- function() {
   catalog_available |>
     dplyr::transmute(
       section, bloc, titre,
-      caption = paste0("Figure issue des sorties ", source_dir, "."),
+      caption = "Source : enquête OSYR. Les modalités de calcul sont précisées dans la méthode.",
       file,
       path = report_path,
       source_dir,
@@ -148,7 +158,12 @@ weighted_score_by_group <- function(data, group_var, score_vars, weight_var = ".
   data |>
     dplyr::select(dplyr::all_of(c(group_var, weight_var, score_vars))) |>
     tidyr::pivot_longer(cols = dplyr::all_of(score_vars), names_to = "score", values_to = "value") |>
-    dplyr::filter(!is.na(.data[[group_var]]), !is.na(value)) |>
+    dplyr::filter(
+      !is.na(.data[[group_var]]),
+      !is.na(value),
+      !is.na(.data[[weight_var]]),
+      .data[[weight_var]] > 0
+    ) |>
     dplyr::group_by(group = .data[[group_var]], score) |>
     dplyr::summarise(
       n = dplyr::n(),
@@ -245,7 +260,7 @@ if ("exposure3" %in% names(df) && "year" %in% names(df)) {
       ), drop = TRUE) +
       ggplot2::labs(
         title = "Exposition aux dispositifs selon l'année de thèse",
-        subtitle = "Répartition pondérée dans chaque année.",
+        subtitle = "Répartition des formes d'exposition selon l'année de thèse.",
         x = "Part pondérée", y = NULL,
         caption = "Source : enquête OSYR."
       ) +
@@ -275,7 +290,7 @@ if (has_rows(q8_devices_long) && "year" %in% names(q8_devices_long)) {
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Types de dispositifs selon l'année de thèse",
-        subtitle = "Question multiréponse Q8 ; part pondérée des répondants de chaque année.",
+        subtitle = "Part des répondants ayant déclaré chaque modalité Q8 selon l'année de thèse.",
         x = NULL, y = NULL, fill = "Part"
       ) +
       osyr_theme(base_size = 9.5) +
@@ -305,7 +320,7 @@ if (has_rows(q8_devices_long) && "discipline_detail" %in% names(q8_devices_long)
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Types de dispositifs selon la discipline détaillée",
-        subtitle = "Question multiréponse Q8 ; part pondérée des répondants de chaque discipline.",
+        subtitle = "Part des répondants ayant déclaré chaque modalité Q8 selon la discipline.",
         x = NULL, y = NULL, fill = "Part"
       ) +
       osyr_theme(base_size = 9.4) +
@@ -337,7 +352,7 @@ if ("training_intensity" %in% names(df) && "exposure3" %in% names(df)) {
       ), drop = TRUE) +
       ggplot2::labs(
         title = "Volume déclaré de formation ou d'actions suivies",
-        subtitle = "Distribution pondérée selon le type d'exposition.",
+        subtitle = "Nombre d'actions suivies selon la forme d'exposition.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme()
@@ -372,7 +387,7 @@ if (has_rows(q11_long) && "agree" %in% names(q11_long)) {
       ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, safe_max(q11_summary$pct_agree_w))) +
       ggplot2::labs(
         title = "Évaluation déclarée des formations",
-        subtitle = "Part pondérée des répondants en accord avec chaque affirmation Q11.",
+        subtitle = "Part des répondants concernés en accord avec chaque affirmation Q11.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme()
@@ -418,7 +433,7 @@ if (has_rows(q5_long) && all(c("known_well", "used") %in% names(q5_long))) {
       ggplot2::scale_color_manual(values = c("Connaît bien" = cols[["green"]], "A déjà utilisé" = cols[["brown"]])) +
       ggplot2::labs(
         title = "Connaissance et usage des outils de science ouverte",
-        subtitle = "Écart entre les notions bien connues et les outils déjà utilisés.",
+        subtitle = "Comparaison entre bonne connaissance déclarée et usage déclaré.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme(base_size = 10)
@@ -435,7 +450,8 @@ if (has_rows(q5_long) && all(c("known_well", "used") %in% names(q5_long))) {
 score_vars <- c(
   "score_q5_known_well", "score_q5_used", "score_q4_practices_research",
   "score_q13_open_intentions", "score_q13_dont_know",
-  "score_q12_incitation", "score_q12_frein", "score_q15_agreement"
+  "score_q12_incitation", "score_q12_frein",
+  "score_q15_benefits", "score_q15_constraints", "score_q15_risks"
 )
 score_labels <- c(
   score_q5_known_well = "Connaissance Q5",
@@ -445,7 +461,9 @@ score_labels <- c(
   score_q13_dont_know = "NSP Q13",
   score_q12_incitation = "Incitation Q12",
   score_q12_frein = "Frein Q12",
-  score_q15_agreement = "Accord Q15"
+  score_q15_benefits = "Bénéfices Q15",
+  score_q15_constraints = "Contraintes Q15",
+  score_q15_risks = "Risques Q15"
 )
 
 if ("exposure2" %in% names(df)) {
@@ -464,7 +482,7 @@ if ("exposure2" %in% names(df)) {
       ggplot2::scale_fill_manual(values = c("Aucun dispositif" = cols[["brown"]], "Dispositif organisé" = cols[["green"]]), drop = TRUE) +
       ggplot2::labs(
         title = "Scores synthétiques selon l'exposition aux dispositifs",
-        subtitle = "Comparaison pondérée entre répondants sans dispositif et répondants exposés à un dispositif organisé.",
+        subtitle = "Scores moyens selon l'exposition aux dispositifs.",
         x = "Moyenne pondérée", y = NULL
       ) +
       osyr_theme()
@@ -472,7 +490,7 @@ if ("exposure2" %in% names(df)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_11_scores_par_exposition.png", 2, "Connaissances",
       "Scores synthétiques selon l'exposition aux dispositifs",
-      "Vue transversale des principaux scores utilisés dans le rapport.",
+      "Comparaison des principaux indicateurs de connaissance, pratiques, intentions, environnement et perceptions.",
       width = 12.5, height = 7.2, priority = 2
     )
   }
@@ -495,7 +513,7 @@ if ("year" %in% names(df)) {
       ggplot2::scale_color_manual(values = c("Connaissance Q5" = cols[["green"]], "Usage Q5" = cols[["brown"]], "Intentions Q13" = cols[["dark_green"]]), drop = TRUE) +
       ggplot2::labs(
         title = "Connaissance, usage et intentions selon l'année de thèse",
-        subtitle = "Évolution descriptive des scores moyens pondérés.",
+        subtitle = "Scores moyens selon l'année de thèse.",
         x = NULL, y = "Moyenne pondérée"
       ) +
       osyr_theme()
@@ -530,7 +548,7 @@ if (has_rows(q4_long) && "positive" %in% names(q4_long)) {
       ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, safe_max(q4_items$pct_positive_w))) +
       ggplot2::labs(
         title = "Pratiques de recherche déjà réalisées",
-        subtitle = "Items Q4 ; part pondérée des répondants concernés.",
+        subtitle = "Part des répondants déclarant avoir déjà réalisé chaque pratique.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme(base_size = 10)
@@ -562,7 +580,7 @@ if (has_rows(q5_long) && "used" %in% names(q5_long) && "year" %in% names(q5_long
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Usages Q5 selon l'année de thèse",
-        subtitle = "Part pondérée déclarant avoir déjà utilisé chaque outil ou notion.",
+        subtitle = "Part déclarant avoir déjà utilisé chaque outil ou pratique.",
         x = NULL, y = NULL, fill = "Usage"
       ) +
       osyr_theme(base_size = 9.5) +
@@ -601,7 +619,7 @@ if (has_rows(q13_long) && "yes" %in% names(q13_long)) {
       ggplot2::scale_fill_manual(values = c("Aucun dispositif" = cols[["brown"]], "Dispositif organisé" = cols[["green"]]), drop = TRUE) +
       ggplot2::labs(
         title = "Intentions de pratiques ouvertes selon l'exposition",
-        subtitle = "Items Q13 ; part pondérée de réponses positives.",
+        subtitle = "Part de réponses positives à chaque intention Q13.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme(base_size = 10)
@@ -627,7 +645,7 @@ if (has_rows(q13_long) && "yes" %in% names(q13_long)) {
         ggplot2::scale_fill_manual(values = c("Aucun dispositif" = cols[["brown"]], "Dispositif organisé" = cols[["green"]]), drop = TRUE) +
         ggplot2::labs(
           title = "Incertitudes déclarées sur les intentions",
-          subtitle = "Items Q13 ; part pondérée de réponses 'je ne sais pas'.",
+          subtitle = "Part de réponses « je ne sais pas » à chaque intention Q13.",
           x = "Part pondérée", y = NULL
         ) +
         osyr_theme(base_size = 10)
@@ -665,7 +683,7 @@ if (all(c("score_q5_known_well", "score_q5_used", "score_q13_open_intentions") %
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Intentions selon les niveaux de connaissance et d'usage",
-        subtitle = "Quartiles de connaissance Q5 et d'usage Q5 ; score moyen d'intentions Q13.",
+        subtitle = "Score moyen d'intentions selon les niveaux de connaissance et d'usage Q5.",
         x = "Usage Q5, du plus faible au plus élevé", y = "Connaissance Q5, du plus faible au plus élevé", fill = "Intentions"
       ) +
       osyr_theme(base_size = 10.5) +
@@ -700,7 +718,7 @@ if (has_rows(q15_long) && "agree" %in% names(q15_long)) {
       ggplot2::scale_fill_manual(values = c("Aucun dispositif" = cols[["brown"]], "Dispositif organisé" = cols[["green"]]), drop = TRUE) +
       ggplot2::labs(
         title = "Perceptions de la science ouverte selon l'exposition",
-        subtitle = "Items Q15 ; part pondérée d'accord.",
+        subtitle = "Part d'accord avec chaque affirmation Q15.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme(base_size = 10)
@@ -741,7 +759,7 @@ if (has_rows(q12_long) && all(c("incitation", "frein") %in% names(q12_long))) {
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Environnement perçu : incitations et freins",
-        subtitle = "Items Q12 selon l'exposition aux dispositifs.",
+        subtitle = "Incitations et freins perçus selon l'exposition aux dispositifs.",
         x = NULL, y = NULL, fill = "Part"
       ) +
       osyr_theme(base_size = 9.5) +
@@ -775,7 +793,7 @@ if (all(c("score_q12_incitation", "score_q12_frein", "score_q15_agreement") %in%
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Perceptions selon l'environnement perçu",
-        subtitle = "Quartiles d'incitation et de frein Q12 ; accord moyen Q15.",
+        subtitle = "Niveau moyen d'accord Q15 selon les incitations et freins perçus.",
         x = "Freins perçus", y = "Incitations perçues", fill = "Accord Q15"
       ) +
       osyr_theme(base_size = 10.5) +
@@ -799,24 +817,75 @@ profile_scores <- profile_scores[!profile_scores %in% c("score_q13_dont_know")]
 
 if (length(profile_scores) >= 4) {
   profile_df <- df |>
-    dplyr::select(respondent_id, .weight, dplyr::all_of(profile_scores), dplyr::any_of(c("exposure3", "year", "discipline_detail", "language_group"))) |>
-    dplyr::filter(dplyr::if_all(dplyr::all_of(profile_scores), ~ !is.na(.x)))
+    dplyr::select(
+      respondent_id, .weight, dplyr::all_of(profile_scores),
+      dplyr::any_of(c("exposure3", "year", "discipline_detail", "language_group"))
+    ) |>
+    dplyr::filter(
+      !is.na(.weight), .weight > 0,
+      dplyr::if_all(dplyr::all_of(profile_scores), ~ !is.na(.x))
+    )
 
   if (nrow(profile_df) >= 50) {
-    x <- profile_df |>
-      dplyr::select(dplyr::all_of(profile_scores)) |>
-      scale()
+    # PLAN — Profils / analyses factorielles.
+    # L'ACP tient compte de la pondération par une standardisation et une matrice
+    # de covariance pondérées. La classification qui suit reste exploratoire :
+    # elle est appliquée aux scores standardisés des individus et n'est pas
+    # utilisée pour produire des tests d'inférence.
+    x_raw <- as.matrix(profile_df |> dplyr::select(dplyr::all_of(profile_scores)))
+    w <- as.numeric(profile_df$.weight)
+    w_norm <- w / sum(w)
 
-    # x est déjà centré-réduit par scale() : ne pas standardiser une seconde fois.
-    pca <- stats::prcomp(x, center = FALSE, scale. = FALSE)
-    k <- min(4, max(2, floor(nrow(profile_df) / 50)))
-    km <- stats::kmeans(x, centers = k, nstart = 50)
+    weighted_mean <- colSums(x_raw * w_norm)
+    centered <- sweep(x_raw, 2, weighted_mean, FUN = "-")
+    weighted_var <- colSums((centered^2) * w_norm)
+    weighted_sd <- sqrt(weighted_var)
+
+    keep_dims <- is.finite(weighted_sd) & weighted_sd > 0
+    x <- sweep(centered[, keep_dims, drop = FALSE], 2, weighted_sd[keep_dims], FUN = "/")
+
+    weighted_cov <- crossprod(x * sqrt(w_norm))
+    eig <- eigen(weighted_cov, symmetric = TRUE)
+    pca_scores <- x %*% eig$vectors
+    explained <- eig$values / sum(eig$values)
+
+    safe_write_csv(
+      tibble::tibble(
+        axis = seq_along(eig$values),
+        eigenvalue = eig$values,
+        variance_explained = explained,
+        cumulative_variance = cumsum(explained)
+      ),
+      file.path(dirs$report, "tables", "profils_pca_variance.csv")
+    )
+
+    # Le nombre de classes K-means n'est plus fixé par une règle arbitraire.
+    # On compare 2 à 4 classes et on retient la solution présentant la meilleure
+    # silhouette moyenne. Le choix est exporté pour être auditable.
+    set.seed(20260927)
+    dmat <- stats::dist(x)
+    k_candidates <- 2:min(4, nrow(profile_df) - 1)
+
+    k_selection <- purrr::map_dfr(k_candidates, function(k) {
+      km_k <- stats::kmeans(x, centers = k, nstart = 50)
+      sil <- cluster::silhouette(km_k$cluster, dmat)
+      tibble::tibble(k = k, silhouette = mean(sil[, "sil_width"]))
+    })
+
+    k <- k_selection$k[which.max(k_selection$silhouette)]
+    safe_write_csv(
+      k_selection,
+      file.path(dirs$report, "tables", "profils_kmeans_selection.csv")
+    )
+
+    set.seed(20260927)
+    km <- stats::kmeans(x, centers = k, nstart = 100)
 
     profile_coord <- profile_df |>
       dplyr::mutate(
         profile = paste0("Profil ", km$cluster),
-        dim1 = pca$x[, 1],
-        dim2 = pca$x[, 2]
+        dim1 = pca_scores[, 1],
+        dim2 = pca_scores[, 2]
       )
 
     safe_write_csv(profile_coord, file.path(dirs$report, "tables", "profils_coordonnees.csv"))
@@ -836,7 +905,7 @@ if (length(profile_scores) >= 4) {
       ggplot2::scale_color_manual(values = c(cols[["green"]], cols[["brown"]], cols[["dark_green"]], cols[["beige"]], cols[["grey"]])) +
       ggplot2::labs(
         title = "Profils de répondants selon les scores de science ouverte",
-        subtitle = "Projection ACP et classification exploratoire.",
+        subtitle = "Projection des répondants sur les deux premiers axes de l'ACP.",
         x = "Axe 1", y = "Axe 2"
       ) +
       osyr_theme()
@@ -844,7 +913,7 @@ if (length(profile_scores) >= 4) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_50_profils_acp_scores.png", 6, "Profils et analyses transversales",
       "Profils de répondants selon les scores de science ouverte",
-      "Analyse exploratoire destinée à repérer des configurations de connaissances, usages, intentions et perceptions.",
+      "Projection sur les deux premiers axes d'une ACP pondérée ; la classification est exploratoire.",
       width = 11.5, height = 7.2, priority = 1
     )
 
@@ -856,7 +925,7 @@ if (length(profile_scores) >= 4) {
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Caractérisation des profils de répondants",
-        subtitle = "Moyennes pondérées des scores dans chaque profil exploratoire.",
+        subtitle = "Scores moyens associés à chaque profil exploratoire.",
         x = NULL, y = NULL, fill = "Score"
       ) +
       osyr_theme(base_size = 10) +
@@ -865,7 +934,7 @@ if (length(profile_scores) >= 4) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_51_profils_moyennes_scores.png", 6, "Profils et analyses transversales",
       "Caractérisation des profils de répondants",
-      "Tableau graphique des scores moyens par profil exploratoire.",
+      "Scores moyens pondérés associés à chaque profil.",
       width = 12.5, height = 6.8, priority = 1
     )
   }
@@ -876,7 +945,7 @@ if ("exposure3" %in% names(df)) {
     dplyr::filter(exposure3 %in% c("Aucun dispositif", "Autoformation / autre seulement", "Dispositif organisé")) |>
     dplyr::select(exposure3, .weight, dplyr::any_of(score_vars)) |>
     tidyr::pivot_longer(cols = dplyr::any_of(score_vars), names_to = "score", values_to = "value") |>
-    dplyr::filter(!is.na(value)) |>
+    dplyr::filter(!is.na(value), !is.na(.weight), .weight > 0) |>
     dplyr::group_by(exposure3, score) |>
     dplyr::summarise(mean_w = w_mean(value, .weight), n = dplyr::n(), .groups = "drop") |>
     dplyr::mutate(score_label = dplyr::recode(score, !!!score_labels, .default = score))
@@ -896,7 +965,7 @@ if ("exposure3" %in% names(df)) {
       ), drop = TRUE) +
       ggplot2::labs(
         title = "Non formés, autoformés et exposés à un dispositif organisé",
-        subtitle = "Comparaison des scores moyens pondérés.",
+        subtitle = "Scores moyens selon le mode d'exposition aux dispositifs.",
         x = "Moyenne pondérée", y = NULL
       ) +
       osyr_theme()
@@ -904,18 +973,21 @@ if ("exposure3" %in% names(df)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_52_focus_non_formes_autoformes.png", 6, "Profils et analyses transversales",
       "Non formés, autoformés et exposés à un dispositif organisé",
-      "Focus sur deux groupes explicitement mentionnés dans le plan de dépouillement.",
+      "Comparaison descriptive des scores selon trois formes d'exposition aux dispositifs.",
       width = 13, height = 7.5, priority = 2
     )
   }
 }
 
 # -----------------------------------------------------------------------------
-# 7. Précautions méthodologiques
+# 7. Inventaire technique des figures par section
 # -----------------------------------------------------------------------------
+# Ce tableau sert uniquement à la production éditoriale. Il ne mesure pas la
+# couverture scientifique du plan : celle-ci est évaluée point par point dans
+# R/osyr_plan_depouillement_analyses.R.
 
-coverage <- osyr_final_plan_registry() |>
-  dplyr::select(section, bloc, objectif, questions_principales) |>
+figure_inventory <- osyr_final_plan_registry() |>
+  dplyr::select(section, bloc) |>
   dplyr::left_join(
     dplyr::bind_rows(figure_log) |>
       dplyr::filter(available) |>
@@ -923,42 +995,20 @@ coverage <- osyr_final_plan_registry() |>
     by = "section"
   ) |>
   dplyr::mutate(
-    n_figures_disponibles = tidyr::replace_na(n_figures_disponibles, 0L),
-    statut_couverture = dplyr::case_when(
-      n_figures_disponibles >= 5 ~ "Couverture forte",
-      n_figures_disponibles >= 3 ~ "Couverture correcte",
-      n_figures_disponibles >= 1 ~ "Couverture partielle",
-      TRUE ~ "À compléter"
-    )
+    n_figures_disponibles = tidyr::replace_na(n_figures_disponibles, 0L)
   )
 
-safe_write_csv(coverage, file.path(dirs$report, "tables", "couverture_plan_de_depouillement.csv"))
+safe_write_csv(
+  figure_inventory,
+  file.path(dirs$report, "tables", "inventaire_figures_par_section.csv")
+)
 
-if (has_rows(coverage)) {
-  p <- coverage |>
-    dplyr::mutate(bloc = forcats::fct_reorder(bloc, section)) |>
-    ggplot2::ggplot(ggplot2::aes(x = n_figures_disponibles, y = bloc, fill = statut_couverture)) +
-    ggplot2::geom_col(width = 0.68) +
-    ggplot2::scale_fill_manual(values = c(
-      "Couverture forte" = cols[["green"]],
-      "Couverture correcte" = cols[["dark_green"]],
-      "Couverture partielle" = cols[["brown"]],
-      "À compléter" = cols[["grey"]]
-    ), drop = TRUE) +
-    ggplot2::labs(
-      title = "Couverture du plan de dépouillement par les sorties disponibles",
-      subtitle = "Nombre de figures mobilisables par section du rapport final.",
-      x = "Nombre de figures", y = NULL
-    ) +
-    osyr_theme()
-
-  figure_log[[length(figure_log) + 1]] <- save_plot_final(
-    p, "final_60_couverture_plan_depouillement.png", 7, "Précautions méthodologiques",
-    "Couverture du plan de dépouillement par les sorties disponibles",
-    "Diagnostic de production : il permet de vérifier les sections encore trop peu couvertes.",
-    width = 11.5, height = 6.8, priority = 1
-  )
-}
+# Supprimer d'anciennes sorties de diagnostic qui pouvaient subsister après un
+# rerun et être confondues avec une mesure de la couverture analytique.
+legacy_coverage_table <- file.path(dirs$report, "tables", "couverture_plan_de_depouillement.csv")
+legacy_coverage_figure <- file.path(dirs$report, "figures", "final_60_couverture_plan_depouillement.png")
+if (file.exists(legacy_coverage_table)) file.remove(legacy_coverage_table)
+if (file.exists(legacy_coverage_figure)) file.remove(legacy_coverage_figure)
 
 # -----------------------------------------------------------------------------
 # Catalogue consolidé des figures finales
