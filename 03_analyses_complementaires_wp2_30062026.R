@@ -835,10 +835,10 @@ if (has_rows(q8_devices_long) && all(c("respondent_id", "device_code", "device_l
       dplyr::mutate(
         device_var = device_var,
         device_code = suppressWarnings(as.numeric(stringr::str_remove(device_var, "^q8_device_"))),
-        estimate_pp_approx = 100 * estimate,
-        conf_low_pp_approx = 100 * conf.low,
-        conf_high_pp_approx = 100 * conf.high,
-        n_model = nrow(d)
+        odds_ratio = exp(estimate),
+        conf_low_or = exp(conf.low),
+        conf_high_or = exp(conf.high),
+        n_model = stats::nobs(mod)
       )
   }
 
@@ -852,11 +852,11 @@ if (has_rows(q8_devices_long) && all(c("respondent_id", "device_code", "device_l
 if (has_rows(q8_device_models)) {
   q8_device_models_summary <- q8_device_models |>
     dplyr::filter(stringr::str_detect(term, "Questionnaire en anglais")) |>
-    dplyr::mutate(abs_estimate_pp = abs(estimate_pp_approx)) |>
-    dplyr::arrange(dplyr::desc(abs_estimate_pp)) |>
+    dplyr::mutate(abs_log_or = abs(log(odds_ratio))) |>
+    dplyr::arrange(dplyr::desc(abs_log_or)) |>
     dplyr::select(
-      device_label, device_type, term, estimate_pp_approx, conf_low_pp_approx,
-      conf_high_pp_approx, p.value, p_fdr, evidence, n_model
+      device_label, device_type, term, odds_ratio, conf_low_or,
+      conf_high_or, p.value, p_fdr, evidence, n_model
     )
 
   save_table(q8_device_models_summary, "q8_device_models_summary")
@@ -1003,8 +1003,8 @@ if (has_rows(score_robustness_summary)) {
       drop = TRUE
     ) +
     ggplot2::labs(
-      title = "Quels résultats sont vraiment robustes ?",
-      subtitle = "Médiane et amplitude des estimations selon les spécifications.",
+      title = "Robustesse des associations selon les spécifications",
+      subtitle = "Médiane et amplitude des estimations obtenues dans les analyses de sensibilité.",
       x = "Écart ajusté médian",
       y = NULL,
       color = NULL
@@ -1186,8 +1186,8 @@ if (has_rows(q5_long) && "item_family" %in% names(q5_long)) {
         na.value = "grey90"
       ) +
       ggplot2::labs(
-        title = "Où l'exposition fait-elle le plus de différence ?",
-        subtitle = "Écarts exposés - non exposés par discipline détaillée et famille d'objets.",
+        title = "Écarts associés à l'exposition selon la discipline et la famille d'objets",
+        subtitle = "Différences de scores entre répondants exposés et non exposés, par discipline détaillée.",
         x = NULL,
         y = NULL,
         fill = "Écart"
@@ -1242,30 +1242,35 @@ if (has_rows(q8_device_distribution_detail_by_language)) {
 
 if (has_rows(q8_device_models_summary)) {
   p_q8_model_language <- q8_device_models_summary |>
+    dplyr::filter(
+      is.finite(odds_ratio), odds_ratio > 0,
+      is.finite(conf_low_or), conf_low_or > 0,
+      is.finite(conf_high_or), conf_high_or > 0
+    ) |>
     dplyr::mutate(
-      device_label = forcats::fct_reorder(stringr::str_wrap(device_label, 42), estimate_pp_approx),
+      device_label = forcats::fct_reorder(stringr::str_wrap(device_label, 42), odds_ratio),
       fdr_ok = p_fdr < 0.05
     ) |>
-    ggplot2::ggplot(ggplot2::aes(x = estimate_pp_approx, y = device_label, color = fdr_ok)) +
-    ggplot2::geom_vline(xintercept = 0, color = "#344054") +
+    ggplot2::ggplot(ggplot2::aes(x = odds_ratio, y = device_label, color = fdr_ok)) +
+    ggplot2::geom_vline(xintercept = 1, color = "#344054") +
     ggplot2::geom_errorbarh(
-      ggplot2::aes(xmin = conf_low_pp_approx, xmax = conf_high_pp_approx),
+      ggplot2::aes(xmin = conf_low_or, xmax = conf_high_or),
       height = 0.14,
       alpha = 0.5
     ) +
     ggplot2::geom_point(size = 2.8) +
-    ggplot2::scale_x_continuous(labels = function(x) paste0(x, " pts")) +
+    ggplot2::scale_x_log10() +
     ggplot2::scale_color_manual(
       values = c("TRUE" = osyr_cols[["teal"]], "FALSE" = osyr_cols[["grey"]]),
       labels = c("FALSE" = "Non robuste FDR", "TRUE" = "FDR < 0,05")
     ) +
     ggplot2::labs(
       title = "Association entre langue du questionnaire et dispositifs Q8",
-      subtitle = "Modèles pondérés, contrôlés par année et discipline détaillée.",
-      x = "Association approximative en points",
+      subtitle = "Odds ratios issus de modèles logistiques pondérés ajustés sur l'année de thèse et la discipline.",
+      x = "Odds ratio (questionnaire anglais / français, échelle logarithmique)",
       y = NULL,
       color = NULL,
-      caption = "Modèles logistiques : l'échelle en points est une approximation descriptive."
+      caption = "Une valeur supérieure à 1 indique une probabilité relative plus élevée de déclarer le dispositif dans le questionnaire anglais."
     ) +
     theme_osyr(base_size = 10.6)
 
