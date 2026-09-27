@@ -148,7 +148,22 @@ add_figure_if_exists <- function(doc, path, title, caption = NULL) {
 
   dims <- figure_dimensions(title, basename(path))
 
-  doc <- officer::body_add_par(doc, title, style = "heading 3")
+  # Le titre de figure est volontairement hors de la hiérarchie Heading :
+  # il ne doit ni être numéroté comme une sous-section, ni apparaître dans le
+  # sommaire. Le titre reste cependant visuellement distinct.
+  doc <- officer::body_add_fpar(
+    doc,
+    officer::fpar(
+      officer::ftext(
+        title,
+        officer::fp_text(
+          font.size = 12.5, bold = TRUE,
+          color = cols[["dark_green"]]
+        )
+      )
+    )
+  )
+
   doc <- officer::body_add_img(
     doc,
     src = path,
@@ -157,7 +172,15 @@ add_figure_if_exists <- function(doc, path, title, caption = NULL) {
   )
 
   if (!is.null(caption) && !is.na(caption) && nzchar(caption)) {
-    doc <- officer::body_add_par(doc, caption, style = "Normal")
+    doc <- officer::body_add_fpar(
+      doc,
+      officer::fpar(
+        officer::ftext(
+          caption,
+          officer::fp_text(font.size = 9.5, color = cols[["grey"]])
+        )
+      )
+    )
   }
 
   doc
