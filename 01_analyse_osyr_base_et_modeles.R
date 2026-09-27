@@ -630,7 +630,11 @@ df <- df_raw |>
       exposure3 == "Dispositif organisé" ~ "Dispositif organisé",
       TRUE ~ NA_character_
     ),
-    exposure_organized = as.numeric(exposure3 == "Dispositif organisé"),
+    exposure_organized = dplyr::case_when(
+      exposure3 == "Dispositif organisé" ~ 1,
+      exposure3 %in% c("Aucun dispositif", "Autoformation / autre seulement") ~ 0,
+      TRUE ~ NA_real_
+    ),
 
     training_intensity = dplyr::case_when(
       exposure3 == "Aucun dispositif" ~ "Aucun dispositif",
