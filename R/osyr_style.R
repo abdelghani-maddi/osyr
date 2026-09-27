@@ -317,9 +317,9 @@ osyr_publication_caption <- function(file, current_caption = NA_character_) {
     "plan_01_q9_organisateurs.png" =
       "Lecture : plusieurs organismes peuvent être cités par un même répondant ; les pourcentages ne sont pas additifs.",
     "final_02_dispositifs_q8_par_annee.png" =
-      "Lecture : Q8 autorise plusieurs réponses ; chaque cellule indique la part pondérée des répondants ayant cité la modalité.",
+      "Lecture : Q8 autorise plusieurs réponses ; chaque cellule indique la part pondérée, parmi les répondants ayant répondu à Q8, ayant cité la modalité.",
     "final_03_dispositifs_q8_par_discipline.png" =
-      "Lecture : Q8 autorise plusieurs réponses ; les pourcentages sont calculés séparément dans chaque discipline.",
+      "Lecture : Q8 autorise plusieurs réponses ; les pourcentages sont calculés parmi les répondants à Q8 de chaque discipline.",
     "final_10_q5_connaissance_usage_items.png" =
       "Lecture : la distance entre les deux points mesure l'écart entre bonne connaissance déclarée et usage déclaré.",
     "final_11_scores_par_exposition.png" =
