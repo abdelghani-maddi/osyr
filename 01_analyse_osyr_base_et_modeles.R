@@ -1171,7 +1171,7 @@ cross_exposure_by_discipline_detail <- cross_weighted(df, "discipline_detail", "
 cross_exposure_by_year <- cross_weighted(df, "year", "exposure3") |> write_table("cross_exposure_by_year")
 cross_exposure_by_language <- cross_weighted(df, "language_group", "exposure3") |> write_table("cross_exposure_by_language")
 
-# Distribution détaillée des dispositifs Q8, sans agrégation.
+# Distribution des huit modalités Q8 dans leur forme originale.
 # Attention : Q8 est une question multiréponse ; les pourcentages représentent
 # la part de répondants ayant coché chaque modalité et ne doivent pas être
 # additionnés.
@@ -1607,7 +1607,7 @@ if (nrow(score_means_by_discipline_detail) > 0) {
       ggplot2::scale_x_continuous(labels = function(x) paste0(x, " pts")) +
       ggplot2::labs(
         title = "Plus grands écarts exposés / non exposés",
-        subtitle = "Top des différences absolues par discipline détaillée et indicateur.",
+        subtitle = "Écarts absolus les plus importants entre disciplines pour chaque indicateur.",
         x = "Écart en points de pourcentage",
         y = NULL,
         color = NULL
