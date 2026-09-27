@@ -1,10 +1,22 @@
 # =============================================================================
-# Synthèses factuelles pour le rapport final OSYR
+# R/osyr_report_text.R — RÉDACTION DÉTERMINISTE DU RAPPORT
+# Version : 27/09/2026
 # =============================================================================
-# Les fonctions de ce fichier transforment les tableaux produits par le workflow
-# en courts résumés factuels. Elles ne remplacent pas l'interprétation
-# scientifique : elles servent à produire un premier niveau de rédaction fondé
-# exclusivement sur les valeurs calculées par les scripts.
+# RÔLE DANS LE WORKFLOW
+#   Ce fichier transforme les tables calculées en paragraphes et tableaux prêts
+#   à être insérés dans le rapport. Il ne produit aucun nouveau résultat.
+#
+# PRINCIPE
+#   La rédaction est entièrement déterministe : une phrase n'est produite que si
+#   la table et les colonnes attendues existent. Les valeurs, écarts et intervalles
+#   proviennent directement des CSV du workflow.
+#
+# CORRESPONDANCE AVEC LE PLAN
+#   section_summary_text() suit les sept blocs du plan de dépouillement.
+#   executive_summary_text() extrait uniquement les résultats transversaux les
+#   plus utiles à l'ouverture du rapport.
+#   discussion_summary_text() met en relation les résultats déjà établis sans
+#   introduire de nouvelle estimation.
 # =============================================================================
 
 report_read_table <- function(name, dir = file.path(osyr_dirs()$report, "tables")) {
@@ -119,6 +131,7 @@ is_monotone_non_decreasing <- function(x) {
 section_summary_text <- function(section) {
   out <- character()
 
+  # 1. Parcours de formation — Q8 à Q11
   if (section == 1) {
     q8 <- report_read_final("q8_device_distribution_detail")
     exposure <- report_read_table("plan_formation_exposition_globale")
@@ -209,6 +222,7 @@ section_summary_text <- function(section) {
     }
   }
 
+  # 2. Connaissances — Q5 et gap connaissance-usage
   if (section == 2) {
     q5 <- report_read_table("connaissances_q5_items_gap")
     scores <- report_read_table("scores_par_exposition")
@@ -259,7 +273,7 @@ section_summary_text <- function(section) {
           fmt_pct_report(o$score_q5_known_well), " et ", fmt_pct_report(o$score_q5_used),
           "), alors que les répondants sans dispositif se situent plus bas (",
           fmt_pct_report(n$score_q5_known_well), " et ", fmt_pct_report(n$score_q5_used),
-          "). Ce profil est compatible avec un effet de sélection de l'autoformation et ne doit pas être lu comme une supériorité de cette modalité."
+          "). Ce profil peut notamment refléter une auto-sélection de répondants déjà familiers de ces pratiques ; il ne permet pas de conclure à une supériorité de l'autoformation."
         ))
       }
     }
@@ -277,6 +291,7 @@ section_summary_text <- function(section) {
     }
   }
 
+  # 3. Pratiques — Q4, usage Q5 et modèles ajustés
   if (section == 3) {
     q4 <- report_read_table("pratiques_q4_items")
     q5 <- report_read_table("connaissances_q5_items_gap")
@@ -305,7 +320,7 @@ section_summary_text <- function(section) {
         out <- c(out, paste0(
           "Le score de pratiques de recherche Q4 est, en revanche, fortement associé à l'usage Q5 : un écart d'une unité sur ce score compris entre 0 et 1 correspond à ",
           fmt_ci_pp_report(q4m$estimate, q4m$conf.low, q4m$conf.high),
-          " dans le modèle. Cela suggère que l'inscription effective dans des activités de recherche est un déterminant descriptif majeur des usages déclarés."
+          " dans le modèle. Dans cette spécification, les pratiques de recherche sont plus fortement associées aux usages Q5 que la seule exposition binaire à un dispositif."
         ))
       }
     }
@@ -325,6 +340,7 @@ section_summary_text <- function(section) {
     }
   }
 
+  # 4. Intentions et attitudes — Q13, Q14 et cumul
   if (section == 4) {
     q13 <- report_read_table("intentions_q13_par_exposition")
     q14 <- report_read_table("plan_q14_raisons_non_adoption")
@@ -405,6 +421,7 @@ section_summary_text <- function(section) {
     }
   }
 
+  # 5. Perceptions — Q12/Q15 et modèles associés
   if (section == 5) {
     q15 <- report_read_table("perceptions_q15_par_exposition")
     q15_overall <- report_read_table("plan_q15_accord_desaccord_global")
@@ -474,6 +491,7 @@ section_summary_text <- function(section) {
     }
   }
 
+  # 6. Profils et analyses transversales
   if (section == 6) {
     auto <- report_read_table("profils_non_formes_autoformes_scores")
     cah <- report_read_table("plan_cah_choix_nombre_classes")
@@ -521,6 +539,7 @@ section_summary_text <- function(section) {
     out <- c(out, "Les classifications exploratoires décrivent des configurations de réponses ; elles ne sont pas interprétées comme des catégories stables hors de l'échantillon.")
   }
 
+  # 7. Précautions méthodologiques et robustesse
   if (section == 7) {
     balance <- report_read_complement("covariate_balance_exposed_nonexposed", subdir = "methodology")
     robust <- report_read_complement("score_robustness_summary")
@@ -648,11 +667,21 @@ section_summary_table <- function(section) {
 }
 
 report_section_intro <- function(section, plan_row) {
-  paste0(
-    plan_row$objectif,
-    " Les analyses présentées ici répondent aux questions suivantes : ",
-    plan_row$questions_principales
+  intros <- c(
+    "Cette section décrit l'exposition aux formations et actions de sensibilisation à la science ouverte, leur format, leur organisation et leur appréciation.",
+    "Cette section distingue la connaissance déclarée des outils et pratiques de science ouverte de leur usage effectif, puis examine les écarts selon les principaux contextes doctoraux.",
+    "Cette section porte sur les pratiques de recherche déjà réalisées et sur l'usage effectif des outils de science ouverte, en tenant compte de l'avancement doctoral, de la discipline et de l'environnement.",
+    "Cette section examine les intentions d'ouverture, les hésitations et les raisons de non-adoption, ainsi que leur articulation avec les pratiques et les connaissances déjà acquises.",
+    "Cette section analyse les représentations de la science ouverte et la manière dont elles s'articulent aux incitations, aux freins et aux pratiques de recherche.",
+    "Cette section rassemble les analyses transversales de profils, notamment la situation des répondants sans dispositif, autoformés ou exposés à une formation organisée.",
+    "Cette section documente la robustesse des résultats, la composition des groupes comparés et les limites à prendre en compte dans l'interprétation."
   )
+
+  if (!is.na(section) && section >= 1 && section <= length(intros)) {
+    return(intros[[section]])
+  }
+
+  plan_row$objectif
 }
 
 executive_summary_text <- function(plan) {
