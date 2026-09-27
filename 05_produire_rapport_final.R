@@ -266,6 +266,18 @@ doc <- officer::body_add_par(
   style = "Normal"
 )
 
+doc <- officer::body_add_par(doc, "Exposition aux dispositifs", style = "heading 2")
+doc <- officer::body_add_par(
+  doc,
+  paste(
+    "Q8 est une question multiréponse. Les cinq modalités explicitement formulées comme formation, atelier, séminaire ou parcours de formation asynchrone dans la DATAMAP sont classées comme dispositifs organisés.",
+    "L'autoformation documentaire et la modalité « autres » sont distinguées dans un profil séparé lorsque le répondant ne déclare aucun dispositif organisé.",
+    "Le code « aucune de ces propositions » définit l'absence de dispositif ; une réponse contradictoire combinant « aucune » avec une autre modalité est classée comme indéterminée.",
+    "Les pourcentages détaillés de Q8 utilisent comme dénominateur les répondants ayant fourni au moins une réponse valide à la question."
+  ),
+  style = "Normal"
+)
+
 doc <- officer::body_add_par(doc, "Dénominateurs et valeurs manquantes", style = "heading 2")
 doc <- officer::body_add_par(
   doc,
