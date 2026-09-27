@@ -657,16 +657,38 @@ save_table(item_tests_summary, "item_tests_top15_by_bloc")
 # 8. Balance des covariables exposés / non exposés
 # -----------------------------------------------------------------------------
 
+weighted_var <- function(x, w) {
+  ok <- !is.na(x) & !is.na(w) & w > 0
+  if (sum(ok) < 2) return(NA_real_)
+  x <- as.numeric(x[ok]); w <- as.numeric(w[ok])
+  m <- sum(w * x) / sum(w)
+  sum(w * (x - m)^2) / sum(w)
+}
+
 standardized_difference_numeric <- function(x, g, w) {
   g <- as.character(g)
-  ok <- !is.na(x) & !is.na(g) & !is.na(w) & g %in% c("Aucun dispositif", "Dispositif organisé")
+  ok <- !is.na(x) & !is.na(g) & !is.na(w) & w > 0 &
+    g %in% c("Aucun dispositif", "Dispositif organisé")
   if (!any(ok)) return(NA_real_)
+
   x <- as.numeric(x[ok]); g <- g[ok]; w <- as.numeric(w[ok])
-  m0 <- w_mean(x[g == "Aucun dispositif"], w[g == "Aucun dispositif"])
-  m1 <- w_mean(x[g == "Dispositif organisé"], w[g == "Dispositif organisé"])
-  sd_pooled <- stats::sd(x, na.rm = TRUE)
-  if (is.na(sd_pooled) || sd_pooled == 0) return(NA_real_)
+  x0 <- x[g == "Aucun dispositif"]; w0 <- w[g == "Aucun dispositif"]
+  x1 <- x[g == "Dispositif organisé"]; w1 <- w[g == "Dispositif organisé"]
+
+  m0 <- w_mean(x0, w0)
+  m1 <- w_mean(x1, w1)
+  v0 <- weighted_var(x0, w0)
+  v1 <- weighted_var(x1, w1)
+  sd_pooled <- sqrt((v0 + v1) / 2)
+
+  if (!is.finite(sd_pooled) || sd_pooled == 0) return(NA_real_)
   (m1 - m0) / sd_pooled
+}
+
+standardized_difference_binary <- function(p0, p1) {
+  denom <- sqrt((p0 * (1 - p0) + p1 * (1 - p1)) / 2)
+  if (!is.finite(denom) || denom == 0) return(NA_real_)
+  (p1 - p0) / denom
 }
 
 covariate_balance <- tibble::tibble()
@@ -683,10 +705,13 @@ if (length(balance_vars) > 0) {
       )
     } else {
       tab <- df |>
-        dplyr::filter(!is.na(exposure2), !is.na(.data[[v]])) |>
+        dplyr::filter(
+          !is.na(exposure2), !is.na(.data[[v]]),
+          !is.na(.weight), .weight > 0
+        ) |>
         dplyr::group_by(exposure2, modality = .data[[v]]) |>
-        dplyr::summarise(weighted_n = sum(.weight, na.rm = TRUE), .groups = "drop_last") |>
-        dplyr::mutate(pct = weighted_n / sum(weighted_n, na.rm = TRUE)) |>
+        dplyr::summarise(weighted_n = sum(.weight), .groups = "drop_last") |>
+        dplyr::mutate(pct = weighted_n / sum(weighted_n)) |>
         dplyr::ungroup() |>
         dplyr::select(exposure2, modality, pct) |>
         tidyr::pivot_wider(names_from = exposure2, values_from = pct, values_fill = 0) |>
@@ -695,12 +720,16 @@ if (length(balance_vars) > 0) {
       if (!all(c("aucun_dispositif", "dispositif_organise") %in% names(tab))) return(tibble::tibble())
 
       tab |>
+        dplyr::rowwise() |>
         dplyr::mutate(
           covariate = v,
-          standardized_difference = dispositif_organise - aucun_dispositif,
+          standardized_difference = standardized_difference_binary(
+            aucun_dispositif, dispositif_organise
+          ),
           abs_standardized_difference = abs(standardized_difference),
-          type = "categorical_prop_diff"
+          type = "categorical_binary_smd"
         ) |>
+        dplyr::ungroup() |>
         dplyr::select(covariate, modality, standardized_difference, abs_standardized_difference, type)
     }
   })
