@@ -252,8 +252,17 @@ save_plot <- function(plot, filename, width = 12, height = 7.2) {
 }
 
 reorder_factor_by <- function(label, value, fun = max) {
-  tmp <- tibble::tibble(label = as.character(label), value = as.numeric(value)) |>
-    dplyr::filter(!is.na(label), !is.na(value)) |>
+  # Utilitaire graphique uniquement. Les valeurs manquantes sont retirées avant
+  # calcul de l'ordre ; si aucune valeur finie ne subsiste, on conserve l'ordre
+  # d'apparition des libellés au lieu d'appeler max() sur un vecteur vide.
+  d <- tibble::tibble(label = as.character(label), value = as.numeric(value)) |>
+    dplyr::filter(!is.na(label), is.finite(value))
+
+  if (nrow(d) == 0) {
+    return(factor(as.character(label), levels = unique(as.character(label))))
+  }
+
+  tmp <- d |>
     dplyr::group_by(label) |>
     dplyr::summarise(order_value = fun(value, na.rm = TRUE), .groups = "drop") |>
     dplyr::arrange(order_value)
@@ -273,16 +282,15 @@ standardize_exposure <- function(x) {
 add_fdr <- function(data, group_vars = c("outcome_label"),
                     conf_low_col = NULL,
                     conf_high_col = NULL) {
-  # Version robuste : les modèles score/item utilisent conf_low_pp/conf_high_pp,
-  # tandis que les modèles Q8 utilisent conf_low_pp_approx/conf_high_pp_approx.
-  # On détecte automatiquement les colonnes disponibles pour éviter l'erreur :
-  # object 'conf_low_pp' not found.
+  # Les sorties n'utilisent pas toutes la même échelle. Les modèles de scores
+  # et d'items disposent d'IC exprimés en points ; les modèles logistiques Q8
+  # conservent aussi les IC natifs sur l'échelle log-odds. L'évidence de signe
+  # est calculée sur l'échelle du coefficient, avant transformation en odds ratio.
   if (!has_rows(data) || !"p.value" %in% names(data)) return(data)
 
   if (is.null(conf_low_col)) {
     conf_low_col <- dplyr::case_when(
       "conf_low_pp" %in% names(data) ~ "conf_low_pp",
-      "conf_low_pp_approx" %in% names(data) ~ "conf_low_pp_approx",
       "conf.low" %in% names(data) ~ "conf.low",
       TRUE ~ NA_character_
     )
@@ -291,7 +299,6 @@ add_fdr <- function(data, group_vars = c("outcome_label"),
   if (is.null(conf_high_col)) {
     conf_high_col <- dplyr::case_when(
       "conf_high_pp" %in% names(data) ~ "conf_high_pp",
-      "conf_high_pp_approx" %in% names(data) ~ "conf_high_pp_approx",
       "conf.high" %in% names(data) ~ "conf.high",
       TRUE ~ NA_character_
     )
