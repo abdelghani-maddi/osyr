@@ -731,7 +731,18 @@ q8_devices_long <- df |>
 
 readr::write_csv(q8_devices_long, file.path(out_dir, "data_clean", "q8_devices_long.csv"))
 
+# Dénominateur Q8 : répondants ayant au moins une réponse valide à Q8.
+# Une non-réponse technique à l'ensemble de la question ne doit pas être
+# assimilée au fait de n'avoir coché aucune modalité ; ce rôle est porté par le
+# code explicite 97 « Aucune de ces propositions ».
+q8_valid_respondents <- q8_devices_long |>
+  dplyr::filter(!is.na(.weight), .weight > 0) |>
+  dplyr::distinct(respondent_id, .weight)
+
+q8_total_weight <- sum(q8_valid_respondents$.weight, na.rm = TRUE)
+
 q8_device_distribution <- q8_devices_long |>
+  dplyr::filter(!is.na(.weight), .weight > 0) |>
   dplyr::group_by(device_code, device_label, device_type) |>
   dplyr::summarise(
     n = dplyr::n_distinct(respondent_id),
@@ -739,7 +750,7 @@ q8_device_distribution <- q8_devices_long |>
     .groups = "drop"
   ) |>
   dplyr::mutate(
-    pct_respondents_w = weighted_n / sum(df$.weight[!is.na(df$.weight) & df$.weight > 0], na.rm = TRUE),
+    pct_respondents_w = weighted_n / q8_total_weight,
     pct_respondents_w_label = safe_pct(pct_respondents_w)
   ) |>
   dplyr::arrange(dplyr::desc(pct_respondents_w))
@@ -747,10 +758,11 @@ q8_device_distribution <- q8_devices_long |>
 write_table(q8_device_distribution, "q8_device_distribution_detail")
 
 # Distribution par langue du questionnaire.
-# Correction importante : le dénominateur doit être le poids total des répondants
-# dans chaque groupe de langue, pas la somme à l'intérieur de chaque modalité Q8.
-language_totals <- df |>
+# Le dénominateur est le poids des répondants disposant d'au moins une réponse
+# Q8 valide dans chaque groupe de langue.
+language_totals <- q8_devices_long |>
   dplyr::filter(!is.na(language_group), !is.na(.weight), .weight > 0) |>
+  dplyr::distinct(respondent_id, language_group, .weight) |>
   dplyr::group_by(language_group) |>
   dplyr::summarise(total_weight_language = sum(.weight, na.rm = TRUE), .groups = "drop")
 
