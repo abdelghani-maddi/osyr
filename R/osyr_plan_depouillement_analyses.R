@@ -1001,11 +1001,12 @@ if (exists("q9_overall") && has_rows(q9_overall)) {
   new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 1L, bloc = "Parcours de formation", titre = "Organisateurs des formations et actions", caption = "Q9, question multiréponse ; part pondérée parmi les répondants disposant d'une réponse Q9.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
 }
 
-if (exists("q14_summary") && has_rows(q14_summary)) {
-  d <- q14_summary |>
-    dplyr::group_by(reason_label) |>
-    dplyr::summarise(pct = mean(pct_respondents_w, na.rm = TRUE), .groups = "drop") |>
-    dplyr::mutate(reason_label = forcats::fct_reorder(stringr::str_wrap(reason_label, 42), pct))
+if (exists("q14_global") && has_rows(q14_global)) {
+  d <- q14_global |>
+    dplyr::transmute(
+      reason_label = forcats::fct_reorder(stringr::str_wrap(reason_label, 42), pct_respondents_w),
+      pct = pct_respondents_w
+    )
   p <- ggplot2::ggplot(d, ggplot2::aes(x = pct, y = reason_label)) +
     ggplot2::geom_col(fill = cols[["brown"]], width = 0.64) +
     ggplot2::geom_text(ggplot2::aes(label = scales::percent(pct, accuracy = 1, decimal.mark = ",")), hjust = -0.15, size = 4) +
@@ -1015,7 +1016,7 @@ if (exists("q14_summary") && has_rows(q14_summary)) {
     ggplot2::theme(plot.title = ggplot2::element_blank(), plot.subtitle = ggplot2::element_blank())
   f <- "plan_10_q14_raisons_non_adoption.png"
   safe_save(p, f, 12.8, 7.2)
-  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Raisons déclarées de non-adoption des pratiques", caption = "Q14 ; synthèse descriptive des raisons déclarées pour les intentions concernées.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
+  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Raisons déclarées de non-adoption des pratiques", caption = "Q14, question multiréponse ; part pondérée des répondants ayant déclaré au moins une raison de non-adoption.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
 }
 
 if (exists("q15_overall") && has_rows(q15_overall)) {
