@@ -845,7 +845,13 @@ if (has_rows(q8_devices_long) && all(c("respondent_id", "device_code", "device_l
   q8_meta <- q8_devices_long |>
     dplyr::distinct(device_code, device_label, device_type)
 
+  # Les modèles Q8 portent uniquement sur les répondants ayant au moins une
+  # réponse valide à Q8. Un questionnaire sans réponse Q8 ne doit pas être codé
+  # comme « n'a pas sélectionné cette modalité » pour chacune des huit options.
+  q8_valid_ids <- unique(q8_devices_long$respondent_id)
+
   df_q8_model <- df |>
+    dplyr::filter(respondent_id %in% q8_valid_ids) |>
     dplyr::left_join(q8_presence, by = "respondent_id")
 
   q8_device_vars <- names(df_q8_model) |> stringr::str_subset("^q8_device_")
