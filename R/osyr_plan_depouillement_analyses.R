@@ -90,6 +90,21 @@ safe_save <- function(p, file, width = 12.8, height = 7.5) {
   file.path(fig_dir, file)
 }
 
+add_model_fdr <- function(x) {
+  if (!has_rows(x) || !"p.value" %in% names(x)) return(x)
+  group_vars <- if ("model" %in% names(x)) "model" else character()
+  x |>
+    dplyr::group_by(dplyr::across(dplyr::any_of(group_vars))) |>
+    dplyr::mutate(
+      p_fdr = dplyr::if_else(
+        term == "(Intercept)",
+        NA_real_,
+        stats::p.adjust(dplyr::if_else(term == "(Intercept)", NA_real_, p.value), method = "BH")
+      )
+    ) |>
+    dplyr::ungroup()
+}
+
 main_rds <- file.path(dirs$final, "data_clean", "osyr_v2_corrigee_clean.rds")
 main_csv <- file.path(dirs$final, "data_clean", "osyr_v2_corrigee_clean.csv")
 if (file.exists(main_rds)) {
@@ -496,7 +511,8 @@ practice_predictors <- c(
   "score_q4_practices_research", "score_q12_incitation", "score_q12_frein",
   "score_q15_benefits", "score_q15_constraints", "score_q15_risks", "q7_group"
 )
-practice_model <- fit_weighted_model(df, "score_q5_used", practice_predictors, "Usage Q5 - modèle élargi")
+practice_model <- fit_weighted_model(df, "score_q5_used", practice_predictors, "Usage Q5 - modèle élargi") |>
+  add_model_fdr()
 write_plan(practice_model, "plan_modele_pratiques_q5_elargi")
 
 training_predictors <- c(
@@ -504,7 +520,8 @@ training_predictors <- c(
   "score_q11_training_evaluation", "year", "discipline_detail", "language_group"
 )
 training_df <- if ("exposure3" %in% names(df)) df |> dplyr::filter(exposure3 != "Aucun dispositif") else df
-training_model <- fit_weighted_model(training_df, "score_q5_used", training_predictors, "Usage Q5 - caractéristiques de formation")
+training_model <- fit_weighted_model(training_df, "score_q5_used", training_predictors, "Usage Q5 - caractéristiques de formation") |>
+  add_model_fdr()
 write_plan(training_model, "plan_modele_pratiques_q5_caracteristiques_formation")
 
 if ("score_q11_training_evaluation" %in% names(df) && "score_q5_used" %in% names(df)) {
@@ -580,6 +597,28 @@ if (q14_available) {
     dplyr::mutate(pct_respondents_w = weighted_n / total_w) |>
     dplyr::arrange(intention_index, dplyr::desc(pct_respondents_w))
   write_plan(q14_summary, "plan_q14_raisons_non_adoption")
+
+  q14_global_denom <- q14_long |>
+    dplyr::filter(reason_code != 97, !is.na(.weight), .weight > 0) |>
+    dplyr::distinct(respondent_id, .weight) |>
+    dplyr::summarise(total_w = sum(.weight), n_respondents = dplyr::n())
+
+  q14_global <- q14_long |>
+    dplyr::filter(reason_code != 97, !is.na(.weight), .weight > 0) |>
+    dplyr::distinct(respondent_id, reason_label, .weight) |>
+    dplyr::group_by(reason_label) |>
+    dplyr::summarise(
+      n_respondents = dplyr::n_distinct(respondent_id),
+      weighted_respondents = sum(.weight),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      total_w = q14_global_denom$total_w,
+      pct_respondents_w = weighted_respondents / total_w
+    ) |>
+    dplyr::arrange(dplyr::desc(pct_respondents_w))
+
+  write_plan(q14_global, "plan_q14_raisons_global_respondants")
 
   if ("exposure3" %in% names(q14_long)) {
     q14_den_exp <- q14_long |>
@@ -744,7 +783,8 @@ perception_predictors <- c(
 )
 perception_models <- purrr::map_dfr(perception_scores, function(outcome) {
   fit_weighted_model(df, outcome, perception_predictors, paste0("Perception - ", outcome))
-})
+}) |>
+  add_model_fdr()
 write_plan(perception_models, "plan_modeles_perceptions_q15")
 
 # -----------------------------------------------------------------------------
