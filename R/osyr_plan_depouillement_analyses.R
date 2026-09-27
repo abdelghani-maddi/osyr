@@ -721,22 +721,36 @@ if ("score_q13_open_intentions" %in% names(df)) {
 if (all(c("score_q5_known_well", "score_q5_used", "score_q13_open_intentions") %in% names(df))) {
   k_med <- stats::median(df$score_q5_known_well, na.rm = TRUE)
   u_med <- stats::median(df$score_q5_used, na.rm = TRUE)
+  # Construire les composantes en dehors de mutate() évite de référencer une
+  # colonne absente dans un export où Q10 ou l'indicateur de direction ne serait
+  # pas disponible.
+  high_training_vec <- if ("q10" %in% names(df)) {
+    q10_num <- suppressWarnings(as.numeric(df$q10))
+    dplyr::case_when(
+      q10_num %in% c(2, 3) ~ TRUE,
+      q10_num == 1 ~ FALSE,
+      TRUE ~ NA
+    )
+  } else {
+    rep(NA, nrow(df))
+  }
+
+  director_support_vec <- if ("director_environment" %in% names(df)) {
+    dplyr::case_when(
+      df$director_environment == "Incitation" ~ TRUE,
+      df$director_environment %in% c("Frein", "Neutre", "Je ne sais pas") ~ FALSE,
+      TRUE ~ NA
+    )
+  } else {
+    rep(NA, nrow(df))
+  }
+
   cumulative <- df |>
     dplyr::mutate(
       # Chaque composante peut prendre TRUE, FALSE ou NA. Une information
       # manquante ne doit pas être traitée comme une absence de condition.
-      high_training = dplyr::case_when(
-        !"q10" %in% names(df) ~ NA,
-        suppressWarnings(as.numeric(q10)) %in% c(2, 3) ~ TRUE,
-        suppressWarnings(as.numeric(q10)) == 1 ~ FALSE,
-        TRUE ~ NA
-      ),
-      director_support = dplyr::case_when(
-        !"director_environment" %in% names(df) ~ NA,
-        director_environment == "Incitation" ~ TRUE,
-        director_environment %in% c("Frein", "Neutre", "Je ne sais pas") ~ FALSE,
-        TRUE ~ NA
-      ),
+      high_training = high_training_vec,
+      director_support = director_support_vec,
       high_knowledge = dplyr::case_when(
         is.na(score_q5_known_well) ~ NA,
         score_q5_known_well >= k_med ~ TRUE,
