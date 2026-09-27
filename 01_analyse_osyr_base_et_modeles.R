@@ -1751,7 +1751,7 @@ if (exists("q8_devices_long") && nrow(q8_devices_long) > 0) {
   }
 }
 
-# 11bis-3. Gap connaissance-usage par discipline détaillée.
+# 11.4. Écart connaissance-usage par discipline détaillée.
 if (exists("q5_by_discipline_detail") && nrow(q5_by_discipline_detail) > 0) {
   q5_gap_by_discipline <- q5_by_discipline_detail |>
     dplyr::group_by(discipline_detail) |>
@@ -1791,7 +1791,7 @@ if (exists("q5_by_discipline_detail") && nrow(q5_by_discipline_detail) > 0) {
     save_plot(p_gap_disc, "17a_gap_connaissance_usage_par_discipline_detail.png", width = 12.5, height = 7.5)
   }
 
-  # Gap par famille d'objet et discipline.
+  # Écart par famille d'objet et discipline.
   if ("item_family" %in% names(q5_by_discipline_detail)) {
     q5_gap_family_disc <- q5_by_discipline_detail |>
       dplyr::group_by(discipline_detail, item_family) |>
@@ -1824,7 +1824,7 @@ if (exists("q5_by_discipline_detail") && nrow(q5_by_discipline_detail) > 0) {
           subtitle = "Différence moyenne en points selon la discipline et la famille d'objets.",
           x = NULL,
           y = NULL,
-          fill = "Gap"
+          fill = "Écart"
         ) +
         theme_osyr(base_size = 9.8) +
         ggplot2::theme(
