@@ -288,16 +288,16 @@ for (sec in sort(unique(plan_rapport$section))) {
 
   if (nrow(figs) > 0) {
     for (i in seq_len(nrow(figs))) {
-      subtitle <- if (!is.na(figs$caption[i]) && nzchar(figs$caption[i])) {
+      note <- if (!is.na(figs$caption[i]) && nzchar(figs$caption[i])) {
         figs$caption[i]
       } else {
-        "Source : enquête OSYR, données pondérées."
+        "Source : enquête OSYR."
       }
 
       ppt <- add_figure_slide(
         ppt,
         figs$titre[i],
-        note = subtitle,
+        note = note,
         path = figs$path[i],
         page = page
       )
