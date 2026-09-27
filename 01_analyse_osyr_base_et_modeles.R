@@ -113,7 +113,7 @@ clean_ascii <- function(x) {
 }
 
 w_mean <- function(x, w) {
-  ok <- !is.na(x) & !is.na(w)
+  ok <- !is.na(x) & !is.na(w) & w > 0
   if (!any(ok)) return(NA_real_)
   sum(as.numeric(x[ok]) * as.numeric(w[ok]), na.rm = TRUE) / sum(as.numeric(w[ok]), na.rm = TRUE)
 }
@@ -592,7 +592,10 @@ df <- df_raw |>
     q8_has_other = purrr::map_lgl(q8_codes_by_row, ~ 98 %in% .x),
     q8_n_organized_types = purrr::map_int(q8_codes_by_row, ~ length(intersect(.x, 1:4))),
 
+    q8_inconsistent_none = q8_has_none & (q8_has_organized | q8_has_self_or_other),
+
     exposure3 = dplyr::case_when(
+      q8_inconsistent_none ~ "Indéterminé",
       q8_has_none ~ "Aucun dispositif",
       q8_has_organized ~ "Dispositif organisé",
       q8_has_self_or_other ~ "Autoformation / autre seulement",
@@ -650,7 +653,7 @@ context_vars <- c(
   "respondent_id", ".weight", "weight_none", "exposure3", "exposure2",
   "exposure_organized", "training_intensity", "q8_n_organized_types",
   "q8_has_presentiel", "q8_has_distanciel", "q8_has_async",
-  "q8_has_autoformation", "q8_has_other", "q7_group",
+  "q8_has_autoformation", "q8_has_other", "q8_inconsistent_none", "q7_group",
   "year_code", "year", "discipline_code", "discipline_detail",
   "discipline_broad", "institution", "language_group"
 )
@@ -706,7 +709,7 @@ q8_device_distribution <- q8_devices_long |>
     .groups = "drop"
   ) |>
   dplyr::mutate(
-    pct_respondents_w = weighted_n / sum(df$.weight, na.rm = TRUE),
+    pct_respondents_w = weighted_n / sum(df$.weight[!is.na(df$.weight) & df$.weight > 0], na.rm = TRUE),
     pct_respondents_w_label = safe_pct(pct_respondents_w)
   ) |>
   dplyr::arrange(dplyr::desc(pct_respondents_w))
@@ -717,12 +720,12 @@ write_table(q8_device_distribution, "q8_device_distribution_detail")
 # Correction importante : le dénominateur doit être le poids total des répondants
 # dans chaque groupe de langue, pas la somme à l'intérieur de chaque modalité Q8.
 language_totals <- df |>
-  dplyr::filter(!is.na(language_group)) |>
+  dplyr::filter(!is.na(language_group), !is.na(.weight), .weight > 0) |>
   dplyr::group_by(language_group) |>
   dplyr::summarise(total_weight_language = sum(.weight, na.rm = TRUE), .groups = "drop")
 
 q8_device_distribution_by_language <- q8_devices_long |>
-  dplyr::filter(!is.na(language_group)) |>
+  dplyr::filter(!is.na(language_group), !is.na(.weight), .weight > 0) |>
   dplyr::group_by(language_group, device_code, device_label, device_type) |>
   dplyr::summarise(
     n = dplyr::n_distinct(respondent_id),
@@ -762,46 +765,105 @@ q13_vars <- names(df) |> stringr::str_subset("^q13_a\\d+$")
 q15_vars <- names(df) |> stringr::str_subset("^q15_a\\d+$")
 
 q4_long <- make_item_long(df, q4_vars, "response", item_map, context_vars) |>
-  dplyr::mutate(positive = suppressWarnings(as.numeric(response)) == 1)
+  dplyr::mutate(
+    response_num = suppressWarnings(as.numeric(response)),
+    positive = dplyr::case_when(
+      response_num == 1 ~ TRUE,
+      response_num == 2 ~ FALSE,
+      TRUE ~ NA
+    )
+  )
 
 q5_long <- make_item_long(df, q5_vars, "response", item_map, context_vars) |>
   dplyr::mutate(
     response_num = suppressWarnings(as.numeric(response)),
-    known_well = response_num %in% c(3, 4),
-    used = response_num == 4,
+    known_well = dplyr::case_when(
+      response_num %in% c(3, 4) ~ TRUE,
+      response_num %in% c(1, 2) ~ FALSE,
+      TRUE ~ NA
+    ),
+    used = dplyr::case_when(
+      response_num == 4 ~ TRUE,
+      response_num %in% c(1, 2, 3) ~ FALSE,
+      TRUE ~ NA
+    ),
     item_family = dplyr::case_when(
-      stringr::str_detect(clean_ascii(item_label), "donnee|data|fair|pgd|gestion des donnees|entrepot") ~ "Données / FAIR / PGD",
-      stringr::str_detect(clean_ascii(item_label), "code|logiciel|software|github|gitlab|software heritage") ~ "Code / logiciel",
-      stringr::str_detect(clean_ascii(item_label), "archive|revue|publication|article|open access|acces ouvert|voie verte|voie doree|voie diamant") ~ "Publications / accès ouvert",
+      stringr::str_detect(clean_ascii(item_label), "plan.*gestion|fair|entrepot.*donnee|gestion des donnees") ~ "Données / FAIR / PGD",
+      stringr::str_detect(clean_ascii(item_label), "code|logiciel|software heritage|plateforme.*code") ~ "Code / logiciel",
+      stringr::str_detect(clean_ascii(item_label), "archive ouverte|revue.*acces ouvert|voie.*acces ouvert") ~ "Publications / accès ouvert",
       stringr::str_detect(clean_ascii(item_label), "orcid|idhal|identifiant") ~ "Identifiants chercheurs",
-      stringr::str_detect(clean_ascii(item_label), "creative commons|licence") ~ "Licences",
+      stringr::str_detect(clean_ascii(item_label), "creative commons|licence") ~ "Licences ouvertes",
+      stringr::str_detect(clean_ascii(item_label), "protocole|registre.*essai") ~ "Protocoles / registres",
+      stringr::str_detect(clean_ascii(item_label), "science participative|science citoyenne") ~ "Sciences participatives",
+      stringr::str_detect(clean_ascii(item_label), "reseau.*academique") ~ "Réseaux académiques",
+      stringr::str_detect(clean_ascii(item_label), "acces non officiel") ~ "Accès non officiel aux publications",
       TRUE ~ "Autres objets"
     )
   )
 
 q11_long <- make_item_long(df, q11_vars, "response", item_map, context_vars) |>
-  dplyr::mutate(response_num = suppressWarnings(as.numeric(response)), agree = response_num %in% c(3, 4))
+  dplyr::mutate(
+    response_num = suppressWarnings(as.numeric(response)),
+    agree = dplyr::case_when(
+      response_num %in% c(3, 4) ~ TRUE,
+      response_num %in% c(1, 2) ~ FALSE,
+      TRUE ~ NA
+    )
+  )
 
 q12_long <- make_item_long(df, q12_vars, "response", item_map, context_vars) |>
   dplyr::mutate(
     response_num = suppressWarnings(as.numeric(response)),
-    incitation = response_num %in% c(4, 5),
-    frein = response_num %in% c(1, 2)
+    incitation = dplyr::case_when(
+      response_num %in% c(4, 5) ~ TRUE,
+      response_num %in% c(1, 2, 3) ~ FALSE,
+      TRUE ~ NA
+    ),
+    frein = dplyr::case_when(
+      response_num %in% c(1, 2) ~ TRUE,
+      response_num %in% c(3, 4, 5) ~ FALSE,
+      TRUE ~ NA
+    ),
+    dont_know = dplyr::case_when(
+      response_num == 97 ~ TRUE,
+      response_num %in% 1:5 ~ FALSE,
+      TRUE ~ NA
+    )
   )
 
 q13_long <- make_item_long(df, q13_vars, "response", item_map, context_vars) |>
   dplyr::mutate(
     response_num = suppressWarnings(as.numeric(response)),
-    yes = response_num == 1,
-    no = response_num == 2,
-    dont_know = response_num == 97
+    yes = dplyr::case_when(
+      response_num == 1 ~ TRUE,
+      response_num %in% c(2, 97) ~ FALSE,
+      TRUE ~ NA
+    ),
+    no = dplyr::case_when(
+      response_num == 2 ~ TRUE,
+      response_num %in% c(1, 97) ~ FALSE,
+      TRUE ~ NA
+    ),
+    dont_know = dplyr::case_when(
+      response_num == 97 ~ TRUE,
+      response_num %in% c(1, 2) ~ FALSE,
+      TRUE ~ NA
+    )
   )
 
 q15_long <- make_item_long(df, q15_vars, "response", item_map, context_vars) |>
   dplyr::mutate(
     response_num = suppressWarnings(as.numeric(response)),
-    agree = response_num %in% c(4, 5),
-    disagree = response_num %in% c(1, 2)
+    agree = dplyr::case_when(
+      response_num %in% c(4, 5) ~ TRUE,
+      response_num %in% c(1, 2, 3) ~ FALSE,
+      TRUE ~ NA
+    ),
+    disagree = dplyr::case_when(
+      response_num %in% c(1, 2) ~ TRUE,
+      response_num %in% c(3, 4, 5) ~ FALSE,
+      TRUE ~ NA
+    )
   )
 
 # Q3 : trois mots ou expressions spontanés. Le format exact peut varier entre
@@ -914,6 +976,26 @@ readr::write_csv(q3_long, file.path(out_dir, "data_clean", "q3_long.csv"))
 readr::write_csv(q9_long, file.path(out_dir, "data_clean", "q9_long.csv"))
 readr::write_csv(q14_long, file.path(out_dir, "data_clean", "q14_long.csv"))
 
+# Diagnostic des dénominateurs. Les modalités hors champ, « je ne sais pas »
+# lorsqu'il ne fait pas partie de l'indicateur, et les non-réponses ne sont pas
+# transformées en réponses négatives.
+response_denominator_diagnostics <- dplyr::bind_rows(
+  q4_long |> dplyr::summarise(battery = "Q4", n_rows = dplyr::n(), n_valid = sum(!is.na(positive)), .groups = "drop"),
+  q5_long |> dplyr::summarise(battery = "Q5 connaissance", n_rows = dplyr::n(), n_valid = sum(!is.na(known_well)), .groups = "drop"),
+  q5_long |> dplyr::summarise(battery = "Q5 usage", n_rows = dplyr::n(), n_valid = sum(!is.na(used)), .groups = "drop"),
+  q11_long |> dplyr::summarise(battery = "Q11", n_rows = dplyr::n(), n_valid = sum(!is.na(agree)), .groups = "drop"),
+  q12_long |> dplyr::summarise(battery = "Q12 incitation", n_rows = dplyr::n(), n_valid = sum(!is.na(incitation)), .groups = "drop"),
+  q12_long |> dplyr::summarise(battery = "Q12 frein", n_rows = dplyr::n(), n_valid = sum(!is.na(frein)), .groups = "drop"),
+  q13_long |> dplyr::summarise(battery = "Q13", n_rows = dplyr::n(), n_valid = sum(!is.na(yes)), .groups = "drop"),
+  q15_long |> dplyr::summarise(battery = "Q15", n_rows = dplyr::n(), n_valid = sum(!is.na(agree)), .groups = "drop")
+) |>
+  dplyr::mutate(
+    n_excluded = n_rows - n_valid,
+    valid_share = dplyr::if_else(n_rows > 0, n_valid / n_rows, NA_real_)
+  )
+
+write_table(response_denominator_diagnostics, "response_denominator_diagnostics", subdir = "diagnostics")
+
 # -----------------------------------------------------------------------------
 # 6. Scores synthétiques
 # -----------------------------------------------------------------------------
@@ -967,6 +1049,14 @@ quality_overview <- tibble::tibble(
 )
 write_table(quality_overview, "quality_overview")
 
+q8_exposure_consistency <- tibble::tibble(
+  n_respondents = nrow(df),
+  n_none_with_other_selection = sum(df$q8_inconsistent_none, na.rm = TRUE),
+  pct_none_with_other_selection = mean(df$q8_inconsistent_none, na.rm = TRUE),
+  n_exposure_indeterminate = sum(df$exposure3 == "Indéterminé", na.rm = TRUE)
+)
+write_table(q8_exposure_consistency, "q8_exposure_consistency", subdir = "diagnostics")
+
 discipline_mapping <- df |>
   dplyr::distinct(discipline_code, discipline_detail, discipline_broad) |>
   dplyr::arrange(discipline_code)
@@ -997,7 +1087,7 @@ if (any(discipline_label_quality$label_is_fallback, na.rm = TRUE)) {
 weighted_frequency <- function(data, var, weight = ".weight") {
   data |>
     dplyr::mutate(category = .data[[var]]) |>
-    dplyr::filter(!is.na(category), !is.na(.data[[weight]])) |>
+    dplyr::filter(!is.na(category), !is.na(.data[[weight]]), .data[[weight]] > 0) |>
     dplyr::group_by(category) |>
     dplyr::summarise(
       n = dplyr::n(),
@@ -1014,7 +1104,7 @@ weighted_frequency <- function(data, var, weight = ".weight") {
 cross_weighted <- function(data, row_var, col_var, weight = ".weight") {
   data |>
     dplyr::mutate(row_category = .data[[row_var]], col_category = .data[[col_var]]) |>
-    dplyr::filter(!is.na(row_category), !is.na(col_category), !is.na(.data[[weight]])) |>
+    dplyr::filter(!is.na(row_category), !is.na(col_category), !is.na(.data[[weight]]), .data[[weight]] > 0) |>
     dplyr::group_by(row_category, col_category) |>
     dplyr::summarise(
       n = dplyr::n(),

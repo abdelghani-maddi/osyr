@@ -195,16 +195,75 @@ doc <- add_text_paragraphs(doc, summary_lines)
 
 # Méthode
 doc <- officer::body_add_par(doc, "Méthode et principes d'analyse", style = "heading 1")
+
+doc <- officer::body_add_par(doc, "Pondération et population d'analyse", style = "heading 2")
 doc <- officer::body_add_par(
   doc,
   paste(
-    "Les résultats reposent sur les données pondérées de l'enquête OSYR.",
-    "Les analyses combinent descriptifs, comparaisons entre groupes, analyses par discipline et année de thèse, ainsi que des modèles ajustés et des tests de sensibilité.",
-    "Les résultats avec et sans pondération, ainsi que les regroupements disciplinaires détaillés et agrégés, sont comparés lorsque cela est pertinent."
+    "La base comporte une seule variable de pondération, Poids, recodée en .weight.",
+    "Les analyses pondérées excluent les observations dont le poids est manquant, nul ou négatif ; elles ne leur attribuent pas un poids de remplacement.",
+    "Les analyses non pondérées utilisées dans les tests de sensibilité reposent sur une constante technique égale à 1 et ne constituent pas une seconde pondération."
   ),
   style = "Normal"
 )
+
+doc <- officer::body_add_par(doc, "Dénominateurs et valeurs manquantes", style = "heading 2")
+doc <- officer::body_add_par(
+  doc,
+  paste(
+    "Les proportions sont calculées parmi les réponses valides pour l'indicateur considéré.",
+    "Les non-réponses et les codes hors champ ne sont pas assimilés à des réponses négatives.",
+    "Pour Q13, « je ne sais pas » est conservé comme modalité analytique distincte ; pour les autres batteries, les modalités qui ne participent pas à l'indicateur sont exclues du dénominateur correspondant.",
+    "Pour les questions multiréponses, notamment Q8, Q9 et Q14, la somme des pourcentages peut dépasser 100 %."
+  ),
+  style = "Normal"
+)
+
+doc <- officer::body_add_par(doc, "Variables synthétiques", style = "heading 2")
+doc <- officer::body_add_par(
+  doc,
+  paste(
+    "Les scores Q4, Q5, Q11, Q12, Q13 et Q15 sont des proportions individuelles comprises entre 0 et 1, calculées sur les items valides de chaque répondant.",
+    "Q15 est présenté selon trois dimensions distinctes : bénéfices scientifiques, contraintes institutionnelles ou économiques et risques individuels.",
+    "Les regroupements de Q5 servent à décrire des familles d'objets ; ils ne remplacent pas les analyses item par item."
+  ),
+  style = "Normal"
+)
+
+doc <- officer::body_add_par(doc, "Comparaisons et modèles", style = "heading 2")
+doc <- officer::body_add_par(
+  doc,
+  paste(
+    "Les descriptifs sont complétés par des comparaisons selon l'année de thèse, la discipline, la langue du questionnaire et l'exposition aux dispositifs.",
+    "Les modèles pondérés utilisent un design sans grappes déclarées (ids = 1) et des régressions linéaires ou linéaires de probabilité selon la nature de la variable.",
+    "Les modèles centraux ajustent au minimum sur l'année de thèse, la discipline et la langue ; des modèles élargis introduisent également les pratiques de recherche, l'environnement et les perceptions lorsque ces variables répondent à la question étudiée.",
+    "Les observations incomplètes sur les variables d'un modèle sont exclues de ce modèle ; l'effectif utilisé est reporté avec les résultats."
+  ),
+  style = "Normal"
+)
+
+doc <- officer::body_add_par(doc, "Robustesse et multiplicité", style = "heading 2")
+doc <- officer::body_add_par(
+  doc,
+  paste(
+    "Les principales associations sont comparées avec et sans pondération et avec deux niveaux de regroupement disciplinaire.",
+    "Pour les batteries d'items et les modèles comportant de nombreux coefficients, les valeurs p sont complétées par une correction de Benjamini-Hochberg afin de limiter les faux positifs liés aux comparaisons multiples.",
+    "Les intervalles de confiance à 95 % sont privilégiés pour apprécier l'incertitude autour des estimations."
+  ),
+  style = "Normal"
+)
+
+doc <- officer::body_add_par(doc, "Portée des résultats", style = "heading 2")
 doc <- officer::body_add_par(doc, osyr_method_note(), style = "Normal")
+doc <- officer::body_add_par(
+  doc,
+  paste(
+    "Les analyses de profils, l'ACP, le k-means, la classification hiérarchique et l'analyse lexicale sont exploratoires.",
+    "Elles servent à décrire des configurations de réponses et ne définissent pas des catégories stables de doctorants.",
+    "Le dictionnaire utilisé pour les mots spontanés Q3 reste un outil de classement provisoire tant qu'une validation manuelle n'a pas été menée."
+  ),
+  style = "Normal"
+)
 
 # Sections de résultats
 for (sec in sort(unique(plan_rapport$section))) {
@@ -255,19 +314,10 @@ for (sec in sort(unique(plan_rapport$section))) {
   }
 }
 
-# Conclusion
+# Discussion et conclusion
 doc <- officer::body_add_break(doc)
-doc <- officer::body_add_par(doc, "Conclusion", style = "heading 1")
-doc <- officer::body_add_par(
-  doc,
-  paste(
-    "L'enquête met en évidence une familiarisation importante des doctorants avec plusieurs dimensions de la science ouverte, mais également des écarts persistants entre connaissance, usage et mise en pratique.",
-    "Les différences associées à l'exposition aux dispositifs de formation doivent être interprétées en tenant compte des disciplines, de l'année de thèse et des différences de composition entre groupes.",
-    "Les analyses de robustesse permettent de distinguer les résultats relativement stables de ceux qui demeurent sensibles aux choix de pondération ou de spécification."
-  ),
-  style = "Normal"
-)
-doc <- officer::body_add_par(doc, osyr_method_note(), style = "Normal")
+doc <- officer::body_add_par(doc, "Discussion et conclusion", style = "heading 1")
+doc <- add_text_paragraphs(doc, discussion_summary_text())
 
 out_docx <- file.path(dirs$report, "rapport_final_osyr.docx")
 print(doc, target = out_docx)

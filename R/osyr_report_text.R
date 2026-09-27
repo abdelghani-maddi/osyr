@@ -93,14 +93,40 @@ group_difference_table <- function(data, group_col, label_col, value_col,
     dplyr::arrange(dplyr::desc(abs_diff_pp))
 }
 
+fmt_ci_pp_report <- function(est, low, high, accuracy = 0.1) {
+  paste0(
+    fmt_pp_report(100 * est, accuracy = accuracy),
+    " (IC 95 % : ",
+    scales::number(100 * low, accuracy = accuracy, decimal.mark = ","),
+    " à ",
+    scales::number(100 * high, accuracy = accuracy, decimal.mark = ","),
+    " points)"
+  )
+}
+
+model_term_row <- function(data, pattern) {
+  if (!is.data.frame(data) || nrow(data) == 0 || !"term" %in% names(data)) return(tibble::tibble())
+  data |>
+    dplyr::filter(stringr::str_detect(term, pattern)) |>
+    dplyr::slice_head(n = 1)
+}
+
+is_monotone_non_decreasing <- function(x) {
+  x <- x[!is.na(x)]
+  length(x) > 1 && all(diff(x) >= -1e-10)
+}
+
 section_summary_text <- function(section) {
   out <- character()
 
   if (section == 1) {
     q8 <- report_read_final("q8_device_distribution_detail")
+    exposure <- report_read_table("plan_formation_exposition_globale")
     q9 <- report_read_table("plan_q9_organisateurs_global")
     q10 <- report_read_table("plan_q10_distribution_globale")
     q11 <- report_read_table("formation_evaluation_q11")
+    q11_volume <- report_read_table("plan_q11_selon_volume_q10")
+    q11_practice <- report_read_table("plan_q11_evaluation_et_pratique_reelle")
     by_year <- report_read_table("formation_exposition_par_annee")
 
     s <- sentence_from_top(
@@ -143,14 +169,51 @@ section_summary_text <- function(section) {
     )
     if (!is.null(s)) out <- c(out, s)
 
+    if (nrow(exposure) > 0 && all(c("exposure3", "pct_w") %in% names(exposure))) {
+      org <- exposure |> dplyr::filter(exposure3 == "Dispositif organisé") |> dplyr::slice(1)
+      self <- exposure |> dplyr::filter(exposure3 == "Autoformation / autre seulement") |> dplyr::slice(1)
+      none <- exposure |> dplyr::filter(exposure3 == "Aucun dispositif") |> dplyr::slice(1)
+      if (nrow(org) == 1 && nrow(self) == 1 && nrow(none) == 1) {
+        out <- c(out, paste0(
+          "Au total, ", fmt_pct_report(org$pct_w),
+          " des répondants sont classés dans la catégorie « dispositif organisé », ",
+          fmt_pct_report(self$pct_w), " dans l'autoformation ou une autre modalité seulement, et ",
+          fmt_pct_report(none$pct_w), " sans dispositif. Cette classification est analytique : Q8 reste une question multiréponse."
+        ))
+      }
+    }
+
+    if (nrow(q11_volume) >= 3 && all(c("training_intensity", "mean_w") %in% names(q11_volume))) {
+      one <- q11_volume |> dplyr::filter(training_intensity == "1 formation/action") |> dplyr::slice(1)
+      two <- q11_volume |> dplyr::filter(training_intensity == "2 ou 3 formations/actions") |> dplyr::slice(1)
+      four <- q11_volume |> dplyr::filter(training_intensity == "4 formations/actions ou plus") |> dplyr::slice(1)
+      if (nrow(one) == 1 && nrow(two) == 1 && nrow(four) == 1) {
+        out <- c(out, paste0(
+          "L'évaluation synthétique de la formation augmente avec le volume déclaré : ",
+          fmt_pct_report(one$mean_w), " pour une action, ",
+          fmt_pct_report(two$mean_w), " pour deux ou trois actions et ",
+          fmt_pct_report(four$mean_w), " pour quatre actions ou plus. Ce gradient porte sur l'appréciation déclarée de la formation, pas sur un effet causal."
+        ))
+      }
+    }
+
+    if (nrow(q11_practice) > 1 && all(c("q11_quartile", "usage_q5_w") %in% names(q11_practice))) {
+      vals <- q11_practice |> dplyr::arrange(q11_quartile) |> dplyr::pull(usage_q5_w)
+      if (!is_monotone_non_decreasing(vals)) {
+        out <- c(out, "En revanche, l'usage Q5 ne progresse pas de façon monotone avec les quartiles d'évaluation Q11. Une appréciation plus favorable de la formation ne se traduit donc pas mécaniquement par davantage d'usages déclarés.")
+      }
+    }
+
     if (nrow(by_year) > 0) {
-      out <- c(out, "Les écarts selon l'année de thèse sont présentés séparément afin de ne pas confondre exposition aux dispositifs et avancement dans le doctorat.")
+      out <- c(out, "Les écarts selon l'année de thèse sont examinés séparément afin de distinguer ce qui relève de l'exposition aux dispositifs de ce qui accompagne simplement l'avancement dans le doctorat.")
     }
   }
 
   if (section == 2) {
     q5 <- report_read_table("connaissances_q5_items_gap")
     scores <- report_read_table("scores_par_exposition")
+    focus <- report_read_table("plan_focus_non_formes_autoformes_organises")
+    families <- report_read_table("plan_q5_familles_par_exposition")
 
     s <- sentence_from_top(q5, "item_label", "pct_known_w", "Les notions ou outils les mieux connus sont : ", 4)
     if (!is.null(s)) out <- c(out, s)
@@ -179,11 +242,46 @@ section_summary_text <- function(section) {
         ))
       }
     }
+
+    if (nrow(focus) > 0 && all(c("exposure3", "indicator", "mean_w") %in% names(focus))) {
+      f <- focus |>
+        dplyr::filter(indicator %in% c("score_q5_known_well", "score_q5_used")) |>
+        dplyr::select(exposure3, indicator, mean_w) |>
+        tidyr::pivot_wider(names_from = indicator, values_from = mean_w)
+      a <- f |> dplyr::filter(exposure3 == "Autoformation / autre seulement") |> dplyr::slice(1)
+      o <- f |> dplyr::filter(exposure3 == "Dispositif organisé") |> dplyr::slice(1)
+      n <- f |> dplyr::filter(exposure3 == "Aucun dispositif") |> dplyr::slice(1)
+      if (nrow(a) == 1 && nrow(o) == 1 && nrow(n) == 1) {
+        out <- c(out, paste0(
+          "Le groupe autoformé présente descriptivement des niveaux élevés de connaissance et d'usage (",
+          fmt_pct_report(a$score_q5_known_well), " et ", fmt_pct_report(a$score_q5_used),
+          "), proches ou supérieurs à ceux du groupe exposé à un dispositif organisé (",
+          fmt_pct_report(o$score_q5_known_well), " et ", fmt_pct_report(o$score_q5_used),
+          "), alors que les répondants sans dispositif se situent plus bas (",
+          fmt_pct_report(n$score_q5_known_well), " et ", fmt_pct_report(n$score_q5_used),
+          "). Ce profil est compatible avec un effet de sélection de l'autoformation et ne doit pas être lu comme une supériorité de cette modalité."
+        ))
+      }
+    }
+
+    if (nrow(families) > 0 && all(c("exposure3", "item_family", "knowledge_w", "usage_w") %in% names(families))) {
+      datafam <- families |> dplyr::filter(item_family == "Données / FAIR / PGD")
+      if (nrow(datafam) > 0) {
+        mx <- max(datafam$knowledge_w, na.rm = TRUE)
+        mu <- max(datafam$usage_w, na.rm = TRUE)
+        out <- c(out, paste0(
+          "Les objets liés aux données, à FAIR et aux plans de gestion restent moins diffusés que les infrastructures de publication ou les identifiants : même dans le groupe le plus élevé, la connaissance de cette famille atteint ",
+          fmt_pct_report(mx), " et l'usage ", fmt_pct_report(mu), "."
+        ))
+      }
+    }
   }
 
   if (section == 3) {
     q4 <- report_read_table("pratiques_q4_items")
     q5 <- report_read_table("connaissances_q5_items_gap")
+    model <- report_read_table("plan_modele_pratiques_q5_elargi")
+    training_model <- report_read_table("plan_modele_pratiques_q5_caracteristiques_formation")
 
     s <- sentence_from_top(q4, "item_label", "pct_positive_w", "Les pratiques de recherche les plus souvent déclarées sont : ", 4)
     if (!is.null(s)) out <- c(out, s)
@@ -192,12 +290,50 @@ section_summary_text <- function(section) {
     if (!is.null(s)) out <- c(out, s)
 
     out <- c(out, "Les analyses par année de thèse et par discipline sont présentées séparément afin d'identifier les pratiques qui dépendent davantage de l'avancement doctoral ou du contexte disciplinaire.")
+
+    if (nrow(model) > 0) {
+      exp <- model_term_row(model, "^exposure2Dispositif organisé$")
+      q4m <- model_term_row(model, "^score_q4_practices_research$")
+      if (nrow(exp) == 1 && all(c("estimate", "conf.low", "conf.high") %in% names(exp))) {
+        out <- c(out, paste0(
+          "Dans le modèle élargi de l'usage Q5, l'association propre au fait d'être exposé à un dispositif organisé est de ",
+          fmt_ci_pp_report(exp$estimate, exp$conf.low, exp$conf.high),
+          ". L'intervalle comprend zéro : une fois pris en compte l'année, la discipline, la langue, les pratiques de recherche, l'environnement et les perceptions, l'exposition binaire ne suffit plus à résumer les différences d'usage."
+        ))
+      }
+      if (nrow(q4m) == 1 && all(c("estimate", "conf.low", "conf.high") %in% names(q4m))) {
+        out <- c(out, paste0(
+          "Le score de pratiques de recherche Q4 est, en revanche, fortement associé à l'usage Q5 : un écart d'une unité sur ce score compris entre 0 et 1 correspond à ",
+          fmt_ci_pp_report(q4m$estimate, q4m$conf.low, q4m$conf.high),
+          " dans le modèle. Cela suggère que l'inscription effective dans des activités de recherche est un déterminant descriptif majeur des usages déclarés."
+        ))
+      }
+    }
+
+    if (nrow(training_model) > 0) {
+      two <- model_term_row(training_model, "training_intensity2 ou 3")
+      four <- model_term_row(training_model, "training_intensity4 formations")
+      if (nrow(two) == 1 && nrow(four) == 1) {
+        out <- c(out, paste0(
+          "Parmi les répondants concernés par une formation, le volume est associé à l'usage : par rapport à une seule action, deux ou trois actions sont associées à ",
+          fmt_ci_pp_report(two$estimate, two$conf.low, two$conf.high),
+          " et quatre actions ou plus à ",
+          fmt_ci_pp_report(four$estimate, four$conf.low, four$conf.high),
+          ". Cette relation reste associative et peut refléter à la fois l'offre de formation et l'engagement préalable des doctorants."
+        ))
+      }
+    }
   }
 
   if (section == 4) {
     q13 <- report_read_table("intentions_q13_par_exposition")
     q14 <- report_read_table("plan_q14_raisons_non_adoption")
+    q14_global <- report_read_table("plan_q14_raisons_global_respondants")
     cumul <- report_read_table("plan_cumul_formation_environnement_connaissance_usage_intentions")
+    intent_k <- report_read_table("plan_intentions_selon_connaissance")
+    intent_u <- report_read_table("plan_intentions_selon_usage")
+    intent_p <- report_read_table("plan_intentions_selon_pratiques_q4")
+    intent_q7 <- report_read_table("plan_intentions_par_q7_group")
 
     if (nrow(q13) > 0) {
       diff_yes <- group_difference_table(q13, "exposure2", "item_label", "pct_yes_w")
@@ -219,15 +355,39 @@ section_summary_text <- function(section) {
       }
     }
 
-    if (nrow(q14) > 0 && all(c("reason_label", "pct_respondents_w") %in% names(q14))) {
-      q14_mean <- q14 |>
-        dplyr::group_by(reason_label) |>
-        dplyr::summarise(pct_respondents_w = mean(pct_respondents_w, na.rm = TRUE), .groups = "drop")
+    if (nrow(q14_global) > 0 && all(c("reason_label", "pct_respondents_w") %in% names(q14_global))) {
       s <- sentence_from_top(
-        q14_mean, "reason_label", "pct_respondents_w",
-        "Les raisons de non-adoption les plus souvent déclarées sont : ", 4
+        q14_global, "reason_label", "pct_respondents_w",
+        "Parmi les répondants ayant indiqué au moins une raison de non-adoption, les motifs les plus répandus sont : ", 4
       )
       if (!is.null(s)) out <- c(out, s)
+    } else if (nrow(q14) > 0) {
+      out <- c(out, "Les raisons Q14 sont analysées intention par intention, avec un dénominateur propre à chaque pratique ; elles ne sont pas moyennées entre intentions.")
+    }
+
+    if (nrow(intent_k) > 1 && nrow(intent_u) > 1 && nrow(intent_p) > 1) {
+      k <- intent_k |> dplyr::arrange(knowledge_quartile)
+      u <- intent_u |> dplyr::arrange(usage_quartile)
+      p <- intent_p |> dplyr::arrange(practice_quartile)
+      out <- c(out, paste0(
+        "Les intentions augmentent avec l'acculturation et surtout avec l'usage : du premier au quatrième quartile, le score moyen passe de ",
+        fmt_pct_report(k$mean_w[1]), " à ", fmt_pct_report(k$mean_w[nrow(k)]),
+        " pour la connaissance, de ", fmt_pct_report(u$mean_w[1]), " à ", fmt_pct_report(u$mean_w[nrow(u)]),
+        " pour l'usage Q5, et de ", fmt_pct_report(p$mean_w[1]), " à ", fmt_pct_report(p$mean_w[nrow(p)]),
+        " pour les pratiques Q4."
+      ))
+    }
+
+    if (nrow(intent_q7) > 0 && all(c("q7_group", "mean_w") %in% names(intent_q7))) {
+      yes <- intent_q7 |> dplyr::filter(q7_group == "Oui") |> dplyr::slice(1)
+      dk <- intent_q7 |> dplyr::filter(q7_group == "Je ne sais pas") |> dplyr::slice(1)
+      if (nrow(yes) == 1 && nrow(dk) == 1) {
+        out <- c(out, paste0(
+          "Les répondants déclarant connaître la politique de science ouverte de leur établissement présentent aussi un score d'intentions plus élevé (",
+          fmt_pct_report(yes$mean_w), ") que ceux qui répondent « je ne sais pas » à Q7 (",
+          fmt_pct_report(dk$mean_w), ")."
+        ))
+      }
     }
 
     if (nrow(cumul) > 0 && all(c("cumulative_support", "mean_w") %in% names(cumul))) {
@@ -249,6 +409,8 @@ section_summary_text <- function(section) {
     q15 <- report_read_table("perceptions_q15_par_exposition")
     q15_overall <- report_read_table("plan_q15_accord_desaccord_global")
     q12 <- report_read_table("perceptions_q12_environnement_par_exposition")
+    pmodels <- report_read_table("plan_modeles_perceptions_q15")
+    unofficial <- report_read_table("plan_perceptions_selon_usage_plateformes_non_officielles")
 
     if (nrow(q15_overall) > 0 && all(c("item_label", "pct_agree_w") %in% names(q15_overall))) {
       q15_mean <- q15_overall
@@ -278,11 +440,44 @@ section_summary_text <- function(section) {
     if (nrow(q12) > 0) {
       out <- c(out, "Les dimensions d'incitation et de frein de l'environnement sont analysées conjointement afin d'éviter de réduire le contexte institutionnel à un indicateur unique.")
     }
+
+    if (nrow(pmodels) > 0) {
+      benef_use <- pmodels |> dplyr::filter(model == "Perception - score_q15_benefits", term == "score_q5_used") |> dplyr::slice(1)
+      benef_env <- pmodels |> dplyr::filter(model == "Perception - score_q15_benefits", term == "score_q12_incitation") |> dplyr::slice(1)
+      constr_frein <- pmodels |> dplyr::filter(model == "Perception - score_q15_constraints", term == "score_q12_frein") |> dplyr::slice(1)
+      if (nrow(benef_use) == 1 && nrow(benef_env) == 1) {
+        out <- c(out, paste0(
+          "Dans les modèles ajustés, les bénéfices scientifiques perçus sont positivement associés à l'usage Q5 (",
+          fmt_ci_pp_report(benef_use$estimate, benef_use$conf.low, benef_use$conf.high),
+          ") et à un environnement plus incitatif (",
+          fmt_ci_pp_report(benef_env$estimate, benef_env$conf.low, benef_env$conf.high), ")."
+        ))
+      }
+      if (nrow(constr_frein) == 1) {
+        out <- c(out, paste0(
+          "Les contraintes institutionnelles ou économiques perçues sont, elles, fortement liées au score de frein Q12 : ",
+          fmt_ci_pp_report(constr_frein$estimate, constr_frein$conf.low, constr_frein$conf.high),
+          ". Les perceptions apparaissent ainsi structurées par l'expérience du contexte de recherche davantage que par la seule exposition aux dispositifs."
+        ))
+      }
+    }
+
+    if (nrow(unofficial) > 0 && all(c("unofficial_platform_used", "dimension", "mean_w") %in% names(unofficial))) {
+      b <- unofficial |> dplyr::filter(dimension == "score_q15_benefits") |> dplyr::arrange(unofficial_platform_used)
+      if (nrow(b) == 2) {
+        out <- c(out, paste0(
+          "Les usagers de plateformes d'accès non officielles déclarent davantage de bénéfices scientifiques associés à la science ouverte (",
+          fmt_pct_report(b$mean_w[b$unofficial_platform_used %in% TRUE]), ") que les non-usagers (",
+          fmt_pct_report(b$mean_w[b$unofficial_platform_used %in% FALSE]), "). L'item ne permet toutefois pas d'identifier un service particulier."
+        ))
+      }
+    }
   }
 
   if (section == 6) {
     auto <- report_read_table("profils_non_formes_autoformes_scores")
     cah <- report_read_table("plan_cah_choix_nombre_classes")
+    cah_scores <- report_read_table("plan_cah_caracterisation_scores")
     robust <- report_read_complement("score_robustness_summary")
 
     if (nrow(auto) > 0 && all(c("exposure3", "score_label", "mean_w") %in% names(auto))) {
@@ -305,8 +500,22 @@ section_summary_text <- function(section) {
       best <- cah |> dplyr::arrange(dplyr::desc(silhouette)) |> dplyr::slice_head(n = 1)
       out <- c(out, paste0(
         "La classification hiérarchique exploratoire retient ", best$k,
-        " classes parmi les solutions de 2 à 6 classes selon la silhouette moyenne."
+        " classes parmi les solutions de 2 à 6 classes. La silhouette moyenne vaut ",
+        scales::number(best$silhouette, accuracy = 0.01, decimal.mark = ","),
+        " : la séparation est donc utile pour explorer les configurations de réponses, mais reste modeste."
       ))
+    }
+
+    if (nrow(cah_scores) > 0 && all(c("cah_profile", "indicator", "mean_w") %in% names(cah_scores))) {
+      risks <- cah_scores |> dplyr::filter(indicator == "score_q15_risks") |> dplyr::arrange(dplyr::desc(mean_w))
+      if (nrow(risks) >= 2) {
+        out <- c(out, paste0(
+          "La principale opposition entre les deux classes hiérarchiques porte sur les risques individuels perçus : ",
+          fmt_pct_report(risks$mean_w[1]), " dans ", risks$cah_profile[1],
+          " contre ", fmt_pct_report(risks$mean_w[2]), " dans ", risks$cah_profile[2],
+          ". Les niveaux de connaissance, d'usage et de pratiques sont beaucoup plus proches."
+        ))
+      }
     }
 
     out <- c(out, "Les classifications exploratoires décrivent des configurations de réponses ; elles ne sont pas interprétées comme des catégories stables hors de l'échantillon.")
@@ -447,11 +656,110 @@ report_section_intro <- function(section, plan_row) {
 }
 
 executive_summary_text <- function(plan) {
-  purrr::map_chr(plan$section, function(sec) {
-    txt <- section_summary_text(sec)
-    if (length(txt) == 0) return(NA_character_)
-    paste0(plan$bloc[plan$section == sec][1], " — ", txt[1])
-  }) |>
-    stats::na.omit() |>
-    as.character()
+  out <- character()
+
+  exposure <- report_read_table("plan_formation_exposition_globale")
+  if (nrow(exposure) > 0 && all(c("exposure3", "pct_w") %in% names(exposure))) {
+    org <- exposure |> dplyr::filter(exposure3 == "Dispositif organisé") |> dplyr::slice(1)
+    self <- exposure |> dplyr::filter(exposure3 == "Autoformation / autre seulement") |> dplyr::slice(1)
+    if (nrow(org) == 1 && nrow(self) == 1) {
+      out <- c(out, paste0(
+        "L'exposition aux dispositifs est fréquente mais prend plusieurs formes : ",
+        fmt_pct_report(org$pct_w), " des répondants relèvent d'un dispositif organisé et ",
+        fmt_pct_report(self$pct_w), " de l'autoformation ou d'une autre modalité seulement."
+      ))
+    }
+  }
+
+  q5 <- report_read_table("connaissances_q5_items_gap")
+  if (nrow(q5) > 0) {
+    high <- q5 |> dplyr::arrange(dplyr::desc(pct_known_w)) |> dplyr::slice_head(n = 1)
+    gap <- q5 |> dplyr::arrange(dplyr::desc(gap_pp)) |> dplyr::slice_head(n = 1)
+    if (nrow(high) == 1 && nrow(gap) == 1) {
+      out <- c(out, paste0(
+        "La familiarisation est forte pour certains outils installés dans les routines académiques, notamment ",
+        clean_report_label(high$item_label), " (", fmt_pct_report(high$pct_known_w),
+        " de bonne connaissance déclarée). Elle ne se convertit pas toujours en usage : le plus grand écart connaissance-usage atteint ",
+        scales::number(gap$gap_pp, accuracy = 0.1, decimal.mark = ","), " points pour ",
+        clean_report_label(gap$item_label), "."
+      ))
+    }
+  }
+
+  model <- report_read_table("plan_modele_pratiques_q5_elargi")
+  if (nrow(model) > 0) {
+    exp <- model_term_row(model, "^exposure2Dispositif organisé$")
+    q4m <- model_term_row(model, "^score_q4_practices_research$")
+    if (nrow(exp) == 1 && nrow(q4m) == 1) {
+      out <- c(out, paste0(
+        "Pour les usages Q5, le modèle élargi met davantage en évidence l'inscription dans des pratiques de recherche que la seule exposition binaire aux dispositifs : le coefficient du score Q4 est ",
+        fmt_ci_pp_report(q4m$estimate, q4m$conf.low, q4m$conf.high),
+        ", tandis que l'estimation associée au dispositif organisé est ",
+        fmt_ci_pp_report(exp$estimate, exp$conf.low, exp$conf.high), "."
+      ))
+    }
+  }
+
+  intent_u <- report_read_table("plan_intentions_selon_usage")
+  q13 <- report_read_table("intentions_q13_par_exposition")
+  if (nrow(intent_u) > 1) {
+    u <- intent_u |> dplyr::arrange(usage_quartile)
+    out <- c(out, paste0(
+      "Les intentions d'ouverture sont plus élevées parmi les répondants qui utilisent déjà davantage les outils de science ouverte : le score moyen passe de ",
+      fmt_pct_report(u$mean_w[1]), " dans le premier quartile d'usage à ",
+      fmt_pct_report(u$mean_w[nrow(u)]), " dans le quatrième."
+    ))
+  } else if (nrow(q13) > 0) {
+    out <- c(out, "Les intentions sont globalement favorables à l'ouverture des publications et de la thèse, mais plus hésitantes pour les données et le code.")
+  }
+
+  q15 <- report_read_table("plan_q15_accord_desaccord_global")
+  if (nrow(q15) > 0) {
+    top <- q15 |> dplyr::arrange(dplyr::desc(pct_agree_w)) |> dplyr::slice_head(n = 3)
+    out <- c(out, paste0(
+      "Les représentations sont largement favorables sur les bénéfices scientifiques : reproductibilité, coopération et intégrité recueillent les niveaux d'accord les plus élevés (",
+      paste(fmt_pct_report(top$pct_agree_w), collapse = ", "), "). Les différences selon l'exposition aux dispositifs restent faibles sur ces items."
+    ))
+  }
+
+  q7 <- report_read_table("plan_q7_connaissance_politique_etablissement")
+  if (nrow(q7) > 0 && all(c("q7_group", "pct_w") %in% names(q7))) {
+    dk <- q7 |> dplyr::filter(q7_group == "Je ne sais pas") |> dplyr::slice(1)
+    if (nrow(dk) == 1) {
+      out <- c(out, paste0(
+        "La visibilité institutionnelle demeure un enjeu : ",
+        fmt_pct_report(dk$pct_w), " des répondants déclarent ne pas savoir si leur établissement dispose d'une politique ou de directives en matière de science ouverte."
+      ))
+    }
+  }
+
+  out
+}
+
+discussion_summary_text <- function() {
+  c(
+    paste(
+      "Pris ensemble, les résultats décrivent moins une opposition entre doctorants « favorables » et « défavorables » à la science ouverte qu'un continuum d'acculturation et de mise en pratique.",
+      "Les bénéfices scientifiques sont largement reconnus, tandis que la maîtrise des instruments plus techniques - gestion des données, archivage du code, protocoles ou registres - reste plus inégale."
+    ),
+    paste(
+      "La formation est associée à plusieurs dimensions de cette acculturation, mais son rôle n'est pas réductible au simple fait d'avoir été exposé ou non à un dispositif.",
+      "Les analyses par volume, par format et par profil d'autoformation montrent des trajectoires différenciées ; les modèles ajustés invitent à tenir compte simultanément de l'avancement dans le doctorat, de la discipline, des pratiques de recherche déjà engagées et du contexte institutionnel."
+    ),
+    paste(
+      "Le passage des dispositions aux pratiques apparaît comme un enjeu central.",
+      "La connaissance des outils est fortement corrélée à leur usage, mais les écarts item par item demeurent substantiels ; les intentions sont elles-mêmes plus élevées chez les répondants qui connaissent, utilisent et pratiquent déjà davantage.",
+      "L'enjeu n'est donc pas uniquement de convaincre de l'intérêt de l'ouverture, mais aussi de rendre les pratiques réalisables dans les situations concrètes de recherche."
+    ),
+    paste(
+      "Les analyses de perceptions vont dans le même sens.",
+      "Les jugements positifs sur la reproductibilité, la coopération ou l'intégrité sont largement partagés et varient peu selon l'exposition aux dispositifs.",
+      "En revanche, les contraintes et les bénéfices perçus sont davantage liés à l'environnement de recherche et aux usages effectifs, ce qui souligne le rôle des conditions organisationnelles."
+    ),
+    paste(
+      "Ces résultats doivent rester interprétés comme des associations observées dans une enquête déclarative.",
+      "La pondération corrige la composition selon le schéma fourni, mais elle ne supprime ni l'auto-sélection dans les formations ni les facteurs non observés.",
+      "Les analyses de profils et de mots spontanés sont exploratoires et servent surtout à formuler des hypothèses pour des analyses ou enquêtes ultérieures."
+    )
+  )
 }

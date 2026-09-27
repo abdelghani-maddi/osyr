@@ -90,6 +90,21 @@ safe_save <- function(p, file, width = 12.8, height = 7.5) {
   file.path(fig_dir, file)
 }
 
+add_model_fdr <- function(x) {
+  if (!has_rows(x) || !"p.value" %in% names(x)) return(x)
+  group_vars <- if ("model" %in% names(x)) "model" else character()
+  x |>
+    dplyr::group_by(dplyr::across(dplyr::any_of(group_vars))) |>
+    dplyr::mutate(
+      p_fdr = dplyr::if_else(
+        term == "(Intercept)",
+        NA_real_,
+        stats::p.adjust(dplyr::if_else(term == "(Intercept)", NA_real_, p.value), method = "BH")
+      )
+    ) |>
+    dplyr::ungroup()
+}
+
 main_rds <- file.path(dirs$final, "data_clean", "osyr_v2_corrigee_clean.rds")
 main_csv <- file.path(dirs$final, "data_clean", "osyr_v2_corrigee_clean.csv")
 if (file.exists(main_rds)) {
@@ -496,7 +511,8 @@ practice_predictors <- c(
   "score_q4_practices_research", "score_q12_incitation", "score_q12_frein",
   "score_q15_benefits", "score_q15_constraints", "score_q15_risks", "q7_group"
 )
-practice_model <- fit_weighted_model(df, "score_q5_used", practice_predictors, "Usage Q5 - modèle élargi")
+practice_model <- fit_weighted_model(df, "score_q5_used", practice_predictors, "Usage Q5 - modèle élargi") |>
+  add_model_fdr()
 write_plan(practice_model, "plan_modele_pratiques_q5_elargi")
 
 training_predictors <- c(
@@ -504,7 +520,8 @@ training_predictors <- c(
   "score_q11_training_evaluation", "year", "discipline_detail", "language_group"
 )
 training_df <- if ("exposure3" %in% names(df)) df |> dplyr::filter(exposure3 != "Aucun dispositif") else df
-training_model <- fit_weighted_model(training_df, "score_q5_used", training_predictors, "Usage Q5 - caractéristiques de formation")
+training_model <- fit_weighted_model(training_df, "score_q5_used", training_predictors, "Usage Q5 - caractéristiques de formation") |>
+  add_model_fdr()
 write_plan(training_model, "plan_modele_pratiques_q5_caracteristiques_formation")
 
 if ("score_q11_training_evaluation" %in% names(df) && "score_q5_used" %in% names(df)) {
@@ -580,6 +597,28 @@ if (q14_available) {
     dplyr::mutate(pct_respondents_w = weighted_n / total_w) |>
     dplyr::arrange(intention_index, dplyr::desc(pct_respondents_w))
   write_plan(q14_summary, "plan_q14_raisons_non_adoption")
+
+  q14_global_denom <- q14_long |>
+    dplyr::filter(reason_code != 97, !is.na(.weight), .weight > 0) |>
+    dplyr::distinct(respondent_id, .weight) |>
+    dplyr::summarise(total_w = sum(.weight), n_respondents = dplyr::n())
+
+  q14_global <- q14_long |>
+    dplyr::filter(reason_code != 97, !is.na(.weight), .weight > 0) |>
+    dplyr::distinct(respondent_id, reason_label, .weight) |>
+    dplyr::group_by(reason_label) |>
+    dplyr::summarise(
+      n_respondents = dplyr::n_distinct(respondent_id),
+      weighted_respondents = sum(.weight),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      total_w = q14_global_denom$total_w,
+      pct_respondents_w = weighted_respondents / total_w
+    ) |>
+    dplyr::arrange(dplyr::desc(pct_respondents_w))
+
+  write_plan(q14_global, "plan_q14_raisons_global_respondants")
 
   if ("exposure3" %in% names(q14_long)) {
     q14_den_exp <- q14_long |>
@@ -744,7 +783,8 @@ perception_predictors <- c(
 )
 perception_models <- purrr::map_dfr(perception_scores, function(outcome) {
   fit_weighted_model(df, outcome, perception_predictors, paste0("Perception - ", outcome))
-})
+}) |>
+  add_model_fdr()
 write_plan(perception_models, "plan_modeles_perceptions_q15")
 
 # -----------------------------------------------------------------------------
@@ -827,14 +867,40 @@ if (q3_available) {
   }
 
   if (q9_available) {
-    q3_q9 <- q3_cat |>
+    q3_by_respondent <- q3_cat |>
       dplyr::select(respondent_id, word_category, .weight) |>
-      dplyr::inner_join(q9_long |> dplyr::distinct(respondent_id, organizer_label), by = "respondent_id") |>
-      dplyr::filter(!is.na(.weight), .weight > 0) |>
+      dplyr::filter(!is.na(word_category), !is.na(.weight), .weight > 0) |>
+      dplyr::distinct(respondent_id, word_category, .keep_all = TRUE)
+
+    q9_by_respondent <- q9_long |>
+      dplyr::filter(!is.na(organizer_label)) |>
+      dplyr::distinct(respondent_id, organizer_label) |>
+      dplyr::group_by(respondent_id) |>
+      dplyr::summarise(organizers = list(organizer_label), .groups = "drop")
+
+    q3_q9_pairs <- q3_by_respondent |>
+      dplyr::inner_join(q9_by_respondent, by = "respondent_id") |>
+      tidyr::unnest_longer(organizers, values_to = "organizer_label") |>
+      dplyr::distinct(respondent_id, organizer_label, word_category, .keep_all = TRUE)
+
+    q3_q9_denominators <- q3_q9_pairs |>
+      dplyr::distinct(respondent_id, organizer_label, .weight) |>
+      dplyr::group_by(organizer_label) |>
+      dplyr::summarise(total_respondent_weight = sum(.weight), .groups = "drop")
+
+    q3_q9 <- q3_q9_pairs |>
       dplyr::group_by(organizer_label, word_category) |>
-      dplyr::summarise(weighted_n = sum(.weight), n = dplyr::n(), .groups = "drop_last") |>
-      dplyr::mutate(pct_mentions_w = weighted_n / sum(weighted_n)) |>
-      dplyr::ungroup()
+      dplyr::summarise(
+        n_respondents = dplyr::n_distinct(respondent_id),
+        weighted_respondents = sum(.weight),
+        .groups = "drop"
+      ) |>
+      dplyr::left_join(q3_q9_denominators, by = "organizer_label") |>
+      dplyr::mutate(
+        pct_respondents_w = weighted_respondents / total_respondent_weight
+      ) |>
+      dplyr::arrange(organizer_label, dplyr::desc(pct_respondents_w))
+
     write_plan(q3_q9, "plan_q3_categories_par_organisateur_q9")
   }
 
@@ -935,11 +1001,12 @@ if (exists("q9_overall") && has_rows(q9_overall)) {
   new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 1L, bloc = "Parcours de formation", titre = "Organisateurs des formations et actions", caption = "Q9, question multiréponse ; part pondérée parmi les répondants disposant d'une réponse Q9.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
 }
 
-if (exists("q14_summary") && has_rows(q14_summary)) {
-  d <- q14_summary |>
-    dplyr::group_by(reason_label) |>
-    dplyr::summarise(pct = mean(pct_respondents_w, na.rm = TRUE), .groups = "drop") |>
-    dplyr::mutate(reason_label = forcats::fct_reorder(stringr::str_wrap(reason_label, 42), pct))
+if (exists("q14_global") && has_rows(q14_global)) {
+  d <- q14_global |>
+    dplyr::transmute(
+      reason_label = forcats::fct_reorder(stringr::str_wrap(reason_label, 42), pct_respondents_w),
+      pct = pct_respondents_w
+    )
   p <- ggplot2::ggplot(d, ggplot2::aes(x = pct, y = reason_label)) +
     ggplot2::geom_col(fill = cols[["brown"]], width = 0.64) +
     ggplot2::geom_text(ggplot2::aes(label = scales::percent(pct, accuracy = 1, decimal.mark = ",")), hjust = -0.15, size = 4) +
@@ -949,7 +1016,7 @@ if (exists("q14_summary") && has_rows(q14_summary)) {
     ggplot2::theme(plot.title = ggplot2::element_blank(), plot.subtitle = ggplot2::element_blank())
   f <- "plan_10_q14_raisons_non_adoption.png"
   safe_save(p, f, 12.8, 7.2)
-  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Raisons déclarées de non-adoption des pratiques", caption = "Q14 ; synthèse descriptive des raisons déclarées pour les intentions concernées.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
+  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Raisons déclarées de non-adoption des pratiques", caption = "Q14, question multiréponse ; part pondérée des répondants ayant déclaré au moins une raison de non-adoption.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
 }
 
 if (exists("q15_overall") && has_rows(q15_overall)) {
