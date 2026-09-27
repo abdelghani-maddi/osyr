@@ -312,8 +312,8 @@ model_files <- c(
   file.path(dirs$report, "tables", "plan_modele_pratiques_q5_elargi.csv"),
   file.path(dirs$report, "tables", "plan_modele_pratiques_q5_caracteristiques_formation.csv"),
   file.path(dirs$report, "tables", "plan_modeles_perceptions_q15.csv"),
-  file.path(dirs$complements, "models", "score_models_weighted_unweighted.csv"),
-  file.path(dirs$complements, "models", "item_models_weighted_unweighted.csv")
+  file.path(dirs$complements, "models", "score_tests_weighted_unweighted_discipline_detail_broad_fdr.csv"),
+  file.path(dirs$complements, "models", "item_tests_weighted_unweighted_discipline_detail_fdr.csv")
 )
 
 model_files <- model_files[file.exists(model_files)]
@@ -381,14 +381,9 @@ if (has_rows(catalog)) {
 
   if (length(text_cols) > 0) {
     editorial_text <- catalog |>
-      dplyr::transmute(
-        txt = apply(
-          dplyr::select(., dplyr::all_of(text_cols)),
-          1,
-          paste,
-          collapse = " "
-        )
-      ) |>
+      dplyr::select(dplyr::all_of(text_cols)) |>
+      dplyr::mutate(dplyr::across(dplyr::everything(), ~ tidyr::replace_na(as.character(.x), ""))) |>
+      tidyr::unite("txt", dplyr::everything(), sep = " ", remove = TRUE) |>
       dplyr::pull(txt)
 
     internal_pattern <- "figure issue des sorties|points à rédiger|rapport_final|complements|diagnostic interne"
