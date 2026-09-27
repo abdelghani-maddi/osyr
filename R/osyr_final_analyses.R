@@ -814,24 +814,75 @@ profile_scores <- profile_scores[!profile_scores %in% c("score_q13_dont_know")]
 
 if (length(profile_scores) >= 4) {
   profile_df <- df |>
-    dplyr::select(respondent_id, .weight, dplyr::all_of(profile_scores), dplyr::any_of(c("exposure3", "year", "discipline_detail", "language_group"))) |>
-    dplyr::filter(dplyr::if_all(dplyr::all_of(profile_scores), ~ !is.na(.x)))
+    dplyr::select(
+      respondent_id, .weight, dplyr::all_of(profile_scores),
+      dplyr::any_of(c("exposure3", "year", "discipline_detail", "language_group"))
+    ) |>
+    dplyr::filter(
+      !is.na(.weight), .weight > 0,
+      dplyr::if_all(dplyr::all_of(profile_scores), ~ !is.na(.x))
+    )
 
   if (nrow(profile_df) >= 50) {
-    x <- profile_df |>
-      dplyr::select(dplyr::all_of(profile_scores)) |>
-      scale()
+    # PLAN — Profils / analyses factorielles.
+    # L'ACP tient compte de la pondération par une standardisation et une matrice
+    # de covariance pondérées. La classification qui suit reste exploratoire :
+    # elle est appliquée aux scores standardisés des individus et n'est pas
+    # utilisée pour produire des tests d'inférence.
+    x_raw <- as.matrix(profile_df |> dplyr::select(dplyr::all_of(profile_scores)))
+    w <- as.numeric(profile_df$.weight)
+    w_norm <- w / sum(w)
 
-    # x est déjà centré-réduit par scale() : ne pas standardiser une seconde fois.
-    pca <- stats::prcomp(x, center = FALSE, scale. = FALSE)
-    k <- min(4, max(2, floor(nrow(profile_df) / 50)))
-    km <- stats::kmeans(x, centers = k, nstart = 50)
+    weighted_mean <- colSums(x_raw * w_norm)
+    centered <- sweep(x_raw, 2, weighted_mean, FUN = "-")
+    weighted_var <- colSums((centered^2) * w_norm)
+    weighted_sd <- sqrt(weighted_var)
+
+    keep_dims <- is.finite(weighted_sd) & weighted_sd > 0
+    x <- sweep(centered[, keep_dims, drop = FALSE], 2, weighted_sd[keep_dims], FUN = "/")
+
+    weighted_cov <- crossprod(x * sqrt(w_norm))
+    eig <- eigen(weighted_cov, symmetric = TRUE)
+    pca_scores <- x %*% eig$vectors
+    explained <- eig$values / sum(eig$values)
+
+    safe_write_csv(
+      tibble::tibble(
+        axis = seq_along(eig$values),
+        eigenvalue = eig$values,
+        variance_explained = explained,
+        cumulative_variance = cumsum(explained)
+      ),
+      file.path(dirs$report, "tables", "profils_pca_variance.csv")
+    )
+
+    # Le nombre de classes K-means n'est plus fixé par une règle arbitraire.
+    # On compare 2 à 4 classes et on retient la solution présentant la meilleure
+    # silhouette moyenne. Le choix est exporté pour être auditable.
+    set.seed(20260927)
+    dmat <- stats::dist(x)
+    k_candidates <- 2:min(4, nrow(profile_df) - 1)
+
+    k_selection <- purrr::map_dfr(k_candidates, function(k) {
+      km_k <- stats::kmeans(x, centers = k, nstart = 50)
+      sil <- cluster::silhouette(km_k$cluster, dmat)
+      tibble::tibble(k = k, silhouette = mean(sil[, "sil_width"]))
+    })
+
+    k <- k_selection$k[which.max(k_selection$silhouette)]
+    safe_write_csv(
+      k_selection,
+      file.path(dirs$report, "tables", "profils_kmeans_selection.csv")
+    )
+
+    set.seed(20260927)
+    km <- stats::kmeans(x, centers = k, nstart = 100)
 
     profile_coord <- profile_df |>
       dplyr::mutate(
         profile = paste0("Profil ", km$cluster),
-        dim1 = pca$x[, 1],
-        dim2 = pca$x[, 2]
+        dim1 = pca_scores[, 1],
+        dim2 = pca_scores[, 2]
       )
 
     safe_write_csv(profile_coord, file.path(dirs$report, "tables", "profils_coordonnees.csv"))
@@ -859,7 +910,7 @@ if (length(profile_scores) >= 4) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_50_profils_acp_scores.png", 6, "Profils et analyses transversales",
       "Profils de répondants selon les scores de science ouverte",
-      "Analyse exploratoire destinée à repérer des configurations de connaissances, usages, intentions et perceptions.",
+      "Projection sur les deux premiers axes d'une ACP pondérée ; la classification est exploratoire.",
       width = 11.5, height = 7.2, priority = 1
     )
 
@@ -880,7 +931,7 @@ if (length(profile_scores) >= 4) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_51_profils_moyennes_scores.png", 6, "Profils et analyses transversales",
       "Caractérisation des profils de répondants",
-      "Tableau graphique des scores moyens par profil exploratoire.",
+      "Scores moyens pondérés associés à chaque profil.",
       width = 12.5, height = 6.8, priority = 1
     )
   }
@@ -891,7 +942,7 @@ if ("exposure3" %in% names(df)) {
     dplyr::filter(exposure3 %in% c("Aucun dispositif", "Autoformation / autre seulement", "Dispositif organisé")) |>
     dplyr::select(exposure3, .weight, dplyr::any_of(score_vars)) |>
     tidyr::pivot_longer(cols = dplyr::any_of(score_vars), names_to = "score", values_to = "value") |>
-    dplyr::filter(!is.na(value)) |>
+    dplyr::filter(!is.na(value), !is.na(.weight), .weight > 0) |>
     dplyr::group_by(exposure3, score) |>
     dplyr::summarise(mean_w = w_mean(value, .weight), n = dplyr::n(), .groups = "drop") |>
     dplyr::mutate(score_label = dplyr::recode(score, !!!score_labels, .default = score))
@@ -919,18 +970,21 @@ if ("exposure3" %in% names(df)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_52_focus_non_formes_autoformes.png", 6, "Profils et analyses transversales",
       "Non formés, autoformés et exposés à un dispositif organisé",
-      "Focus sur deux groupes explicitement mentionnés dans le plan de dépouillement.",
+      "Comparaison descriptive des scores selon trois formes d'exposition aux dispositifs.",
       width = 13, height = 7.5, priority = 2
     )
   }
 }
 
 # -----------------------------------------------------------------------------
-# 7. Précautions méthodologiques
+# 7. Inventaire technique des figures par section
 # -----------------------------------------------------------------------------
+# Ce tableau sert uniquement à la production éditoriale. Il ne mesure pas la
+# couverture scientifique du plan : celle-ci est évaluée point par point dans
+# R/osyr_plan_depouillement_analyses.R.
 
-coverage <- osyr_final_plan_registry() |>
-  dplyr::select(section, bloc, objectif, questions_principales) |>
+figure_inventory <- osyr_final_plan_registry() |>
+  dplyr::select(section, bloc) |>
   dplyr::left_join(
     dplyr::bind_rows(figure_log) |>
       dplyr::filter(available) |>
@@ -938,42 +992,20 @@ coverage <- osyr_final_plan_registry() |>
     by = "section"
   ) |>
   dplyr::mutate(
-    n_figures_disponibles = tidyr::replace_na(n_figures_disponibles, 0L),
-    statut_couverture = dplyr::case_when(
-      n_figures_disponibles >= 5 ~ "Couverture forte",
-      n_figures_disponibles >= 3 ~ "Couverture correcte",
-      n_figures_disponibles >= 1 ~ "Couverture partielle",
-      TRUE ~ "À compléter"
-    )
+    n_figures_disponibles = tidyr::replace_na(n_figures_disponibles, 0L)
   )
 
-safe_write_csv(coverage, file.path(dirs$report, "tables", "couverture_plan_de_depouillement.csv"))
+safe_write_csv(
+  figure_inventory,
+  file.path(dirs$report, "tables", "inventaire_figures_par_section.csv")
+)
 
-if (has_rows(coverage)) {
-  p <- coverage |>
-    dplyr::mutate(bloc = forcats::fct_reorder(bloc, section)) |>
-    ggplot2::ggplot(ggplot2::aes(x = n_figures_disponibles, y = bloc, fill = statut_couverture)) +
-    ggplot2::geom_col(width = 0.68) +
-    ggplot2::scale_fill_manual(values = c(
-      "Couverture forte" = cols[["green"]],
-      "Couverture correcte" = cols[["dark_green"]],
-      "Couverture partielle" = cols[["brown"]],
-      "À compléter" = cols[["grey"]]
-    ), drop = TRUE) +
-    ggplot2::labs(
-      title = "Couverture du plan de dépouillement par les sorties disponibles",
-      subtitle = "Nombre de figures mobilisables par section du rapport final.",
-      x = "Nombre de figures", y = NULL
-    ) +
-    osyr_theme()
-
-  figure_log[[length(figure_log) + 1]] <- save_plot_final(
-    p, "final_60_couverture_plan_depouillement.png", 7, "Précautions méthodologiques",
-    "Couverture du plan de dépouillement par les sorties disponibles",
-    "Diagnostic de production : il permet de vérifier les sections encore trop peu couvertes.",
-    width = 11.5, height = 6.8, priority = 1
-  )
-}
+# Supprimer d'anciennes sorties de diagnostic qui pouvaient subsister après un
+# rerun et être confondues avec une mesure de la couverture analytique.
+legacy_coverage_table <- file.path(dirs$report, "tables", "couverture_plan_de_depouillement.csv")
+legacy_coverage_figure <- file.path(dirs$report, "figures", "final_60_couverture_plan_depouillement.png")
+if (file.exists(legacy_coverage_table)) file.remove(legacy_coverage_table)
+if (file.exists(legacy_coverage_figure)) file.remove(legacy_coverage_figure)
 
 # -----------------------------------------------------------------------------
 # Catalogue consolidé des figures finales
