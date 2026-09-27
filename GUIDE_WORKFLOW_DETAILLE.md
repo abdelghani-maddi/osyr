@@ -60,6 +60,12 @@ Cette étape confronte les sorties au plan de dépouillement de septembre 2026 e
 
 Elle produit notamment `couverture_plan_depouillement_detaillee.csv`. Le statut d'un point dépend de l'existence réelle des variables et sorties, et non du nombre de graphiques.
 
+## R/osyr_method_checks.R
+
+Cette étape est exécutée après les analyses du plan et avant la production graphique. Elle vérifie les conventions qui ne doivent pas dépendre de l'interprétation : unicité de la pondération, poids valides, bornes des scores, cohérence Q5/Q12/Q13, cohérence des intervalles de confiance et valeurs p.
+
+Une erreur critique interrompt la chaîne. Les avertissements sont conservés dans `outputs_osyr_rapport_final/diagnostics/integrite_methodologique.csv`.
+
 ## R/osyr_figure_polish.R
 
 Cette étape reprend les tables finales et régénère les figures destinées au rapport et à la présentation dans un format plus lisible.
@@ -96,3 +102,8 @@ Le traitement s'appuie notamment sur :
 - Q15 : représentations de la science ouverte.
 
 Les modalités exactes sont celles de la DATAMAP V2 placée dans `data/BJ30232 - DATAMAP V2.xlsx`.
+
+
+## Comment lire les commentaires du code
+
+Chaque script actif comporte désormais en tête un bloc « rôle dans le workflow » et une correspondance avec le plan de dépouillement. Les commentaires placés avant les blocs d'analyse indiquent la question du plan traitée, les variables mobilisées, le dénominateur attendu et le statut descriptif, ajusté ou exploratoire de l'analyse.
