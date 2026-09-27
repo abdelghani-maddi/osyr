@@ -1,14 +1,24 @@
 # =============================================================================
-# Analyses et figures pour la production finale OSYR
-# =============================================================================
-# Ce fichier est appelé par les scripts 05 et 06.
-# Il part des sorties des scripts 01 et 03 et produit une couche d'analyses
-# supplémentaires alignée sur le plan de dépouillement de septembre 2026.
+# SCRIPT — ANALYSES TRANSVERSALES POUR LES LIVRABLES FINAUX
+# Version 2026-09-27
 #
-# Les figures produites ici ne remplacent pas les figures exploratoires : elles
-# servent à alimenter le rapport final et la présentation finale.
+# RÔLE DANS LE WORKFLOW
+#   Reprendre les sorties des scripts 01 et 03 pour construire les tableaux
+#   transversaux directement utilisés dans le rapport et la présentation.
+#
+# CORRESPONDANCE AVEC LE PLAN DE DÉPOUILLEMENT
+#   1. Parcours de formation : exposition, Q8, Q10, Q11.
+#   2. Connaissances : connaissance, usage et gap Q5.
+#   3. Pratiques : Q4, usages Q5 et évolution selon l'année de thèse.
+#   4. Intentions : Q13, incertitudes et articulation connaissance-usage.
+#   5. Perceptions : Q12 et Q15.
+#   6. Profils : autoformation, ACP et classifications exploratoires.
+#   7. Méthode : robustesse et diagnostics destinés à l'interprétation.
+#
+# Les calculs de ce script restent descriptifs ou exploratoires ; les modèles
+# ajustés et les tests formels sont produits par le script 03 et par
+# osyr_plan_depouillement_analyses.R.
 # =============================================================================
-
 options(
   scipen = 999,
   dplyr.summarise.inform = FALSE,
@@ -114,7 +124,7 @@ copy_existing_figures <- function() {
   catalog_available |>
     dplyr::transmute(
       section, bloc, titre,
-      caption = paste0("Figure issue des sorties ", source_dir, "."),
+      caption = "Source : enquête OSYR. Les modalités de calcul sont précisées dans la méthode.",
       file,
       path = report_path,
       source_dir,
@@ -245,7 +255,7 @@ if ("exposure3" %in% names(df) && "year" %in% names(df)) {
       ), drop = TRUE) +
       ggplot2::labs(
         title = "Exposition aux dispositifs selon l'année de thèse",
-        subtitle = "Répartition pondérée dans chaque année.",
+        subtitle = "Répartition des formes d'exposition selon l'année de thèse.",
         x = "Part pondérée", y = NULL,
         caption = "Source : enquête OSYR."
       ) +
@@ -275,7 +285,7 @@ if (has_rows(q8_devices_long) && "year" %in% names(q8_devices_long)) {
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Types de dispositifs selon l'année de thèse",
-        subtitle = "Question multiréponse Q8 ; part pondérée des répondants de chaque année.",
+        subtitle = "Part des répondants ayant déclaré chaque modalité Q8 selon l'année de thèse.",
         x = NULL, y = NULL, fill = "Part"
       ) +
       osyr_theme(base_size = 9.5) +
@@ -305,7 +315,7 @@ if (has_rows(q8_devices_long) && "discipline_detail" %in% names(q8_devices_long)
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Types de dispositifs selon la discipline détaillée",
-        subtitle = "Question multiréponse Q8 ; part pondérée des répondants de chaque discipline.",
+        subtitle = "Part des répondants ayant déclaré chaque modalité Q8 selon la discipline.",
         x = NULL, y = NULL, fill = "Part"
       ) +
       osyr_theme(base_size = 9.4) +
@@ -337,7 +347,7 @@ if ("training_intensity" %in% names(df) && "exposure3" %in% names(df)) {
       ), drop = TRUE) +
       ggplot2::labs(
         title = "Volume déclaré de formation ou d'actions suivies",
-        subtitle = "Distribution pondérée selon le type d'exposition.",
+        subtitle = "Nombre d'actions suivies selon la forme d'exposition.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme()
@@ -372,7 +382,7 @@ if (has_rows(q11_long) && "agree" %in% names(q11_long)) {
       ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, safe_max(q11_summary$pct_agree_w))) +
       ggplot2::labs(
         title = "Évaluation déclarée des formations",
-        subtitle = "Part pondérée des répondants en accord avec chaque affirmation Q11.",
+        subtitle = "Part des répondants concernés en accord avec chaque affirmation Q11.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme()
@@ -418,7 +428,7 @@ if (has_rows(q5_long) && all(c("known_well", "used") %in% names(q5_long))) {
       ggplot2::scale_color_manual(values = c("Connaît bien" = cols[["green"]], "A déjà utilisé" = cols[["brown"]])) +
       ggplot2::labs(
         title = "Connaissance et usage des outils de science ouverte",
-        subtitle = "Écart entre les notions bien connues et les outils déjà utilisés.",
+        subtitle = "Comparaison entre bonne connaissance déclarée et usage déclaré.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme(base_size = 10)
@@ -464,7 +474,7 @@ if ("exposure2" %in% names(df)) {
       ggplot2::scale_fill_manual(values = c("Aucun dispositif" = cols[["brown"]], "Dispositif organisé" = cols[["green"]]), drop = TRUE) +
       ggplot2::labs(
         title = "Scores synthétiques selon l'exposition aux dispositifs",
-        subtitle = "Comparaison pondérée entre répondants sans dispositif et répondants exposés à un dispositif organisé.",
+        subtitle = "Scores moyens selon l'exposition aux dispositifs.",
         x = "Moyenne pondérée", y = NULL
       ) +
       osyr_theme()
@@ -495,7 +505,7 @@ if ("year" %in% names(df)) {
       ggplot2::scale_color_manual(values = c("Connaissance Q5" = cols[["green"]], "Usage Q5" = cols[["brown"]], "Intentions Q13" = cols[["dark_green"]]), drop = TRUE) +
       ggplot2::labs(
         title = "Connaissance, usage et intentions selon l'année de thèse",
-        subtitle = "Évolution descriptive des scores moyens pondérés.",
+        subtitle = "Scores moyens selon l'année de thèse.",
         x = NULL, y = "Moyenne pondérée"
       ) +
       osyr_theme()
@@ -530,7 +540,7 @@ if (has_rows(q4_long) && "positive" %in% names(q4_long)) {
       ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, safe_max(q4_items$pct_positive_w))) +
       ggplot2::labs(
         title = "Pratiques de recherche déjà réalisées",
-        subtitle = "Items Q4 ; part pondérée des répondants concernés.",
+        subtitle = "Part des répondants déclarant avoir déjà réalisé chaque pratique.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme(base_size = 10)
@@ -562,7 +572,7 @@ if (has_rows(q5_long) && "used" %in% names(q5_long) && "year" %in% names(q5_long
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Usages Q5 selon l'année de thèse",
-        subtitle = "Part pondérée déclarant avoir déjà utilisé chaque outil ou notion.",
+        subtitle = "Part déclarant avoir déjà utilisé chaque outil ou pratique.",
         x = NULL, y = NULL, fill = "Usage"
       ) +
       osyr_theme(base_size = 9.5) +
@@ -601,7 +611,7 @@ if (has_rows(q13_long) && "yes" %in% names(q13_long)) {
       ggplot2::scale_fill_manual(values = c("Aucun dispositif" = cols[["brown"]], "Dispositif organisé" = cols[["green"]]), drop = TRUE) +
       ggplot2::labs(
         title = "Intentions de pratiques ouvertes selon l'exposition",
-        subtitle = "Items Q13 ; part pondérée de réponses positives.",
+        subtitle = "Part de réponses positives à chaque intention Q13.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme(base_size = 10)
@@ -627,7 +637,7 @@ if (has_rows(q13_long) && "yes" %in% names(q13_long)) {
         ggplot2::scale_fill_manual(values = c("Aucun dispositif" = cols[["brown"]], "Dispositif organisé" = cols[["green"]]), drop = TRUE) +
         ggplot2::labs(
           title = "Incertitudes déclarées sur les intentions",
-          subtitle = "Items Q13 ; part pondérée de réponses 'je ne sais pas'.",
+          subtitle = "Part de réponses « je ne sais pas » à chaque intention Q13.",
           x = "Part pondérée", y = NULL
         ) +
         osyr_theme(base_size = 10)
@@ -665,7 +675,7 @@ if (all(c("score_q5_known_well", "score_q5_used", "score_q13_open_intentions") %
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Intentions selon les niveaux de connaissance et d'usage",
-        subtitle = "Quartiles de connaissance Q5 et d'usage Q5 ; score moyen d'intentions Q13.",
+        subtitle = "Score moyen d'intentions selon les niveaux de connaissance et d'usage Q5.",
         x = "Usage Q5, du plus faible au plus élevé", y = "Connaissance Q5, du plus faible au plus élevé", fill = "Intentions"
       ) +
       osyr_theme(base_size = 10.5) +
@@ -700,7 +710,7 @@ if (has_rows(q15_long) && "agree" %in% names(q15_long)) {
       ggplot2::scale_fill_manual(values = c("Aucun dispositif" = cols[["brown"]], "Dispositif organisé" = cols[["green"]]), drop = TRUE) +
       ggplot2::labs(
         title = "Perceptions de la science ouverte selon l'exposition",
-        subtitle = "Items Q15 ; part pondérée d'accord.",
+        subtitle = "Part d'accord avec chaque affirmation Q15.",
         x = "Part pondérée", y = NULL
       ) +
       osyr_theme(base_size = 10)
@@ -741,7 +751,7 @@ if (has_rows(q12_long) && all(c("incitation", "frein") %in% names(q12_long))) {
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Environnement perçu : incitations et freins",
-        subtitle = "Items Q12 selon l'exposition aux dispositifs.",
+        subtitle = "Incitations et freins perçus selon l'exposition aux dispositifs.",
         x = NULL, y = NULL, fill = "Part"
       ) +
       osyr_theme(base_size = 9.5) +
@@ -775,7 +785,7 @@ if (all(c("score_q12_incitation", "score_q12_frein", "score_q15_agreement") %in%
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Perceptions selon l'environnement perçu",
-        subtitle = "Quartiles d'incitation et de frein Q12 ; accord moyen Q15.",
+        subtitle = "Niveau moyen d'accord Q15 selon les incitations et freins perçus.",
         x = "Freins perçus", y = "Incitations perçues", fill = "Accord Q15"
       ) +
       osyr_theme(base_size = 10.5) +
@@ -836,7 +846,7 @@ if (length(profile_scores) >= 4) {
       ggplot2::scale_color_manual(values = c(cols[["green"]], cols[["brown"]], cols[["dark_green"]], cols[["beige"]], cols[["grey"]])) +
       ggplot2::labs(
         title = "Profils de répondants selon les scores de science ouverte",
-        subtitle = "Projection ACP et classification exploratoire.",
+        subtitle = "Projection des répondants sur les deux premiers axes de l'ACP.",
         x = "Axe 1", y = "Axe 2"
       ) +
       osyr_theme()
@@ -856,7 +866,7 @@ if (length(profile_scores) >= 4) {
       ggplot2::scale_fill_gradient(low = cols[["light_grey"]], high = cols[["green"]], labels = scales::percent_format(accuracy = 1)) +
       ggplot2::labs(
         title = "Caractérisation des profils de répondants",
-        subtitle = "Moyennes pondérées des scores dans chaque profil exploratoire.",
+        subtitle = "Scores moyens associés à chaque profil exploratoire.",
         x = NULL, y = NULL, fill = "Score"
       ) +
       osyr_theme(base_size = 10) +
@@ -896,7 +906,7 @@ if ("exposure3" %in% names(df)) {
       ), drop = TRUE) +
       ggplot2::labs(
         title = "Non formés, autoformés et exposés à un dispositif organisé",
-        subtitle = "Comparaison des scores moyens pondérés.",
+        subtitle = "Scores moyens selon le mode d'exposition aux dispositifs.",
         x = "Moyenne pondérée", y = NULL
       ) +
       osyr_theme()
