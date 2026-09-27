@@ -664,11 +664,10 @@ section_summary_table <- function(section) {
 }
 
 report_section_intro <- function(section, plan_row) {
-  paste0(
-    plan_row$objectif,
-    " Les analyses présentées ici répondent aux questions suivantes : ",
-    plan_row$questions_principales
-  )
+  # Introduction éditoriale courte : l'objectif du bloc suffit dans le corps du
+  # rapport. Le détail des questions du plan reste documenté dans les tables
+  # d'audit et ne doit pas donner au texte final l'allure d'un document de travail.
+  as.character(plan_row$objectif)
 }
 
 executive_summary_text <- function(plan) {
