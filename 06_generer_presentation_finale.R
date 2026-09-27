@@ -1,12 +1,19 @@
 # =============================================================================
-# SCRIPT 06 — GÉNÉRER LA PRÉSENTATION FINALE OSYR
-# Version 2026-09-21 v3
+# SCRIPT 06 — PRODUIRE LA PRÉSENTATION FINALE OSYR
+# Version 2026-09-27
 # =============================================================================
-# Présentation finale alignée sur le rapport principal.
-# Elle privilégie les messages-clés et un nombre limité de figures lisibles.
-# Les figures complémentaires restent disponibles dans l'annexe graphique Word.
+# RÔLE DANS LE WORKFLOW
+#   Construire le diaporama à partir de la même sélection de résultats que le
+#   rapport, avec une densité moindre et des figures déjà mises au format de
+#   publication par R/osyr_figure_polish.R.
+#
+# RÈGLES ÉDITORIALES
+#   - une idée principale par diapositive ;
+#   - titres courts et formulés pour le lecteur ;
+#   - pas de sous-titre technique reprenant les légendes du catalogue ;
+#   - notes méthodologiques courtes en pied de page si elles sont nécessaires ;
+#   - deux figures principales au maximum par section.
 # =============================================================================
-
 options(
   scipen = 999,
   dplyr.summarise.inform = FALSE,
@@ -180,16 +187,24 @@ add_summary_slide <- function(ppt, title, bullets, page) {
   ppt
 }
 
-add_figure_slide <- function(ppt, title, subtitle, path, page) {
+add_figure_slide <- function(ppt, title, note = NULL, path, page) {
   ppt <- officer::add_slide(ppt, layout = layout_blank, master = master)
   ppt <- add_osyr_bar(ppt, page)
-  ppt <- add_title(ppt, title, subtitle)
+  ppt <- add_title(ppt, title)
 
   ppt <- officer::ph_with(
     ppt,
-    value = officer::external_img(path, width = 11.7, height = 5.1),
-    location = ph(left = 0.82, top = 1.75, width = 11.7, height = 5.1)
+    value = officer::external_img(path, width = 11.7, height = 5.45),
+    location = ph(left = 0.82, top = 1.35, width = 11.7, height = 5.45)
   )
+
+  if (!is.null(note) && !is.na(note) && nzchar(note)) {
+    ppt <- officer::ph_with(
+      ppt,
+      value = officer::fpar(officer::ftext(note, fp_small)),
+      location = ph(left = 0.82, top = 6.82, width = 11.5, height = 0.32)
+    )
+  }
 
   ppt
 }
@@ -282,9 +297,9 @@ for (sec in sort(unique(plan_rapport$section))) {
       ppt <- add_figure_slide(
         ppt,
         figs$titre[i],
-        subtitle,
-        figs$path[i],
-        page
+        note = subtitle,
+        path = figs$path[i],
+        page = page
       )
       page <- page + 1
     }
