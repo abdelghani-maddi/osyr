@@ -371,7 +371,9 @@ if (has_rows(scores_expo) && all(c("group", "score", "mean_w") %in% names(scores
     score_q13_dont_know = "Je ne sais pas Q13",
     score_q12_incitation = "Incitation Q12",
     score_q12_frein = "Frein Q12",
-    score_q15_agreement = "Accord Q15"
+    score_q15_benefits = "Bénéfices Q15",
+    score_q15_constraints = "Contraintes Q15",
+    score_q15_risks = "Risques Q15"
   )
 
   d <- scores_expo |>
