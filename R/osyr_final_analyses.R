@@ -78,6 +78,47 @@ w_mean <- function(x, w) {
 
 w_prop <- function(x, w) w_mean(as.numeric(x), w)
 
+weighted_standardize_matrix <- function(data, vars, weight_var = ".weight") {
+  # Centrage-réduction pondéré : chaque variable est standardisée avec la moyenne
+  # et la variance pondérées par Poids/.weight. Cette transformation est utilisée
+  # uniquement pour les analyses multivariées exploratoires.
+  w <- as.numeric(data[[weight_var]])
+  x <- as.matrix(data[, vars, drop = FALSE])
+  ok_w <- !is.na(w) & w > 0
+  if (!all(ok_w)) stop("Les analyses multivariées attendent des poids strictement positifs.")
+
+  w_sum <- sum(w)
+  means <- colSums(x * w) / w_sum
+  centered <- sweep(x, 2, means, "-")
+  vars_w <- colSums((centered^2) * w) / w_sum
+  sds <- sqrt(vars_w)
+  if (any(!is.finite(sds) | sds <= 0)) {
+    stop("Au moins une variable de profil a une variance pondérée nulle.")
+  }
+
+  list(
+    x = sweep(centered, 2, sds, "/"),
+    means = means,
+    sds = sds,
+    weights = w
+  )
+}
+
+weighted_pca <- function(x, w) {
+  # ACP pondérée par covariance : les poids interviennent dans le calcul des axes.
+  # Les scores individuels servent ensuite uniquement à la représentation.
+  wn <- w / sum(w)
+  xw <- x * sqrt(wn)
+  cov_w <- crossprod(xw)
+  eig <- eigen(cov_w, symmetric = TRUE)
+  list(
+    rotation = eig$vectors,
+    sdev = sqrt(pmax(eig$values, 0)),
+    scores = x %*% eig$vectors,
+    variance = eig$values / sum(eig$values)
+  )
+}
+
 safe_max <- function(x, multiplier = 1.15, floor = 0.05, ceiling = 1) {
   m <- suppressWarnings(max(x, na.rm = TRUE))
   if (!is.finite(m) || is.na(m)) return(floor)
@@ -841,20 +882,24 @@ if (length(profile_scores) >= 4) {
     dplyr::filter(dplyr::if_all(dplyr::all_of(profile_scores), ~ !is.na(.x)))
 
   if (nrow(profile_df) >= 50) {
-    x <- profile_df |>
-      dplyr::select(dplyr::all_of(profile_scores)) |>
-      scale()
+    # PLAN — Profils et analyses transversales.
+    # Les axes de l'ACP utilisent le poids d'enquête dans le centrage, la
+    # standardisation et la matrice de covariance. Le k-means reste exploratoire :
+    # chaque répondant constitue une observation, mais les variables qui entrent
+    # dans la distance ont été standardisées avec la pondération d'enquête.
+    std_profile <- weighted_standardize_matrix(profile_df, profile_scores, ".weight")
+    x <- std_profile$x
+    pca <- weighted_pca(x, std_profile$weights)
 
-    # x est déjà centré-réduit par scale() : ne pas standardiser une seconde fois.
-    pca <- stats::prcomp(x, center = FALSE, scale. = FALSE)
     k <- min(4, max(2, floor(nrow(profile_df) / 50)))
+    set.seed(20260927)
     km <- stats::kmeans(x, centers = k, nstart = 50)
 
     profile_coord <- profile_df |>
       dplyr::mutate(
         profile = paste0("Profil ", km$cluster),
-        dim1 = pca$x[, 1],
-        dim2 = pca$x[, 2]
+        dim1 = pca$scores[, 1],
+        dim2 = pca$scores[, 2]
       )
 
     safe_write_csv(profile_coord, file.path(dirs$report, "tables", "profils_coordonnees.csv"))
