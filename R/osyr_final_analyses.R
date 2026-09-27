@@ -450,7 +450,8 @@ if (has_rows(q5_long) && all(c("known_well", "used") %in% names(q5_long))) {
 score_vars <- c(
   "score_q5_known_well", "score_q5_used", "score_q4_practices_research",
   "score_q13_open_intentions", "score_q13_dont_know",
-  "score_q12_incitation", "score_q12_frein", "score_q15_agreement"
+  "score_q12_incitation", "score_q12_frein",
+  "score_q15_benefits", "score_q15_constraints", "score_q15_risks"
 )
 score_labels <- c(
   score_q5_known_well = "Connaissance Q5",
@@ -460,7 +461,9 @@ score_labels <- c(
   score_q13_dont_know = "NSP Q13",
   score_q12_incitation = "Incitation Q12",
   score_q12_frein = "Frein Q12",
-  score_q15_agreement = "Accord Q15"
+  score_q15_benefits = "Bénéfices Q15",
+  score_q15_constraints = "Contraintes Q15",
+  score_q15_risks = "Risques Q15"
 )
 
 if ("exposure2" %in% names(df)) {
@@ -487,7 +490,7 @@ if ("exposure2" %in% names(df)) {
     figure_log[[length(figure_log) + 1]] <- save_plot_final(
       p, "final_11_scores_par_exposition.png", 2, "Connaissances",
       "Scores synthétiques selon l'exposition aux dispositifs",
-      "Vue transversale des principaux scores utilisés dans le rapport.",
+      "Comparaison des principaux indicateurs de connaissance, pratiques, intentions, environnement et perceptions.",
       width = 12.5, height = 7.2, priority = 2
     )
   }
