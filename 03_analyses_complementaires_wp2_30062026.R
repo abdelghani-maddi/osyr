@@ -135,11 +135,25 @@ safe_max <- function(x, default = 1) {
   m
 }
 
-make_design <- function(data, weight_var) {
-  d <- data
-  if (!weight_var %in% names(d)) d[[weight_var]] <- 1
-  d$.__weight__ <- suppressWarnings(as.numeric(d[[weight_var]]))
-  d$.__weight__[is.na(d$.__weight__) | d$.__weight__ <= 0] <- 1
+make_design <- function(data, weight_var = ".weight") {
+  # La BDD OSYR comporte une seule variable de pondération : Poids,
+  # recodée en .weight dans le script 01. Aucune autre colonne n'est
+  # interprétée comme un poids par détection automatique.
+  if (!identical(weight_var, ".weight")) {
+    stop("make_design() n'accepte que la pondération principale .weight.")
+  }
+  if (!weight_var %in% names(data)) {
+    stop("La pondération principale .weight est absente. Relancer le script 01.")
+  }
+
+  d <- data |>
+    dplyr::mutate(.__weight__ = suppressWarnings(as.numeric(.data[[weight_var]]))) |>
+    dplyr::filter(!is.na(.__weight__), .__weight__ > 0)
+
+  if (nrow(d) == 0) {
+    stop("Aucune observation avec un poids Poids/.weight strictement positif.")
+  }
+
   survey::svydesign(ids = ~1, weights = ~.__weight__, data = d)
 }
 
@@ -325,8 +339,15 @@ q12_long <- read_csv_safe(file.path(main_data, "q12_long.csv"))
 q13_long <- read_csv_safe(file.path(main_data, "q13_long.csv"))
 q15_long <- read_csv_safe(file.path(main_data, "q15_long.csv"))
 
-if (!".weight" %in% names(df)) df$.weight <- 1
+if (!".weight" %in% names(df)) {
+  stop("La variable .weight est absente. Elle doit être créée à partir de l'unique colonne Poids par le script 01.")
+}
 if (!"weight_none" %in% names(df)) df$weight_none <- 1
+
+df$.weight <- suppressWarnings(as.numeric(df$.weight))
+if (any(!is.na(df$.weight) & df$.weight <= 0)) {
+  warning("Des valeurs de Poids/.weight sont nulles ou négatives. Elles seront exclues des analyses pondérées.")
+}
 if (!"exposure2" %in% names(df)) stop("La variable exposure2 est absente. Relancer le script 01.")
 if (!"discipline_detail" %in% names(df)) stop("La variable discipline_detail est absente. Relancer le script 01 v14.")
 
@@ -373,7 +394,7 @@ if (any(discipline_label_quality_runtime$label_is_fallback, na.rm = TRUE)) {
 analysis_registry <- tibble::tribble(
   ~bloc, ~question, ~sortie_principale, ~statut,
   "Pondération", "Les résultats changent-ils avec/sans poids ?", "models/score_tests_weighted_unweighted_discipline_detail_broad.csv", "implémenté",
-  "Pondération", "Quels poids sont disponibles et utilisables ?", "methodology/weight_registry_v12.csv", "implémenté",
+  "Pondération", "La pondération principale Poids est-elle exploitable ?", "methodology/weight_registry_v12.csv", "implémenté",
   "Discipline", "Les conclusions changent-elles avec discipline détaillée vs agrégée ?", "figures/02_sensibilite_discipline_detail_vs_agregee.png", "implémenté",
   "Items", "Quels items portent les écarts ?", "models/item_tests_weighted_unweighted_discipline_detail.csv", "implémenté",
   "Multiplicité", "Les résultats résistent-ils à une correction FDR ?", "models/item_tests_weighted_unweighted_discipline_detail_fdr.csv", "implémenté",
@@ -389,34 +410,38 @@ save_method(analysis_registry, "analysis_registry_v12")
 # 5. Registre des tests et variables de pondération
 # -----------------------------------------------------------------------------
 
-weight_vars <- names(df)[
-  stringr::str_detect(stringr::str_to_lower(names(df)), "poids|weight|pond") &
-    purrr::map_lgl(df, is.numeric)
-]
+# Il n'existe qu'une variable de pondération dans la BDD : Poids.
+# Le script 01 la recode en .weight. weight_none est uniquement une constante
+# technique (1 pour chaque répondant) utilisée pour reproduire les modèles sans
+# pondération ; ce n'est pas une deuxième pondération.
+weight_vars <- existing_vars(c("weight_none", ".weight"), df)
 
-weight_vars <- unique(c("weight_none", ".weight", weight_vars))
-weight_vars <- existing_vars(weight_vars, df)
+weight_registry <- tibble::tibble(
+  weight_var = ".weight",
+  source_var = "Poids",
+  n_missing = sum(is.na(df$.weight)),
+  n_non_positive = sum(!is.na(df$.weight) & df$.weight <= 0),
+  min_weight = if (all(is.na(df$.weight))) NA_real_ else min(df$.weight, na.rm = TRUE),
+  max_weight = if (all(is.na(df$.weight))) NA_real_ else max(df$.weight, na.rm = TRUE),
+  mean_weight = if (all(is.na(df$.weight))) NA_real_ else mean(df$.weight, na.rm = TRUE),
+  sd_weight = if (sum(!is.na(df$.weight)) < 2) NA_real_ else stats::sd(df$.weight, na.rm = TRUE),
+  cv_weight = dplyr::if_else(
+    !is.na(mean_weight) & mean_weight != 0 & !is.na(sd_weight),
+    sd_weight / mean_weight,
+    NA_real_
+  ),
+  sum_weight = sum(df$.weight, na.rm = TRUE),
+  interpretation = "Pondération d'enquête unique issue de la colonne Poids"
+)
 
-weight_registry <- purrr::map_dfr(weight_vars, function(wv) {
-  tibble::tibble(
-    weight_var = wv,
-    n_missing = sum(is.na(df[[wv]])),
-    n_non_positive = sum(!is.na(df[[wv]]) & df[[wv]] <= 0),
-    min_weight = min(df[[wv]], na.rm = TRUE),
-    max_weight = max(df[[wv]], na.rm = TRUE),
-    mean_weight = mean(df[[wv]], na.rm = TRUE),
-    sd_weight = stats::sd(df[[wv]], na.rm = TRUE),
-    cv_weight = sd_weight / mean_weight,
-    sum_weight = sum(df[[wv]], na.rm = TRUE),
-    interpretation = dplyr::case_when(
-      wv == "weight_none" ~ "Analyse non pondérée",
-      wv == ".weight" ~ "Pondération principale issue de Poids",
-      TRUE ~ "Autre variable de pondération détectée"
-    )
-  )
-})
+analysis_scheme_registry <- tibble::tribble(
+  ~scheme, ~weight_var, ~is_survey_weight, ~description,
+  "Non pondéré", "weight_none", FALSE, "Chaque répondant contribue avec le même poids ; weight_none est une constante technique égale à 1.",
+  "Pondéré", ".weight", TRUE, "Pondération d'enquête issue de l'unique colonne Poids."
+)
 
 save_method(weight_registry, "weight_registry_v12")
+save_method(analysis_scheme_registry, "analysis_scheme_registry_v13")
 
 score_labels <- tibble::tribble(
   ~outcome, ~outcome_label, ~family,
@@ -478,7 +503,7 @@ fit_one_model <- function(data, outcome, outcome_label, weight_var, discipline_l
       estimate_pp = 100 * estimate,
       conf_low_pp = 100 * conf.low,
       conf_high_pp = 100 * conf.high,
-      n_model = nrow(d),
+      n_model = stats::nobs(mod),
       controls = rhs
     )
 }
@@ -591,7 +616,7 @@ fit_item_models <- function(long_df, outcome, bloc_label, weight_vars, disciplin
           estimate_pp = 100 * estimate,
           conf_low_pp = 100 * conf.low,
           conf_high_pp = 100 * conf.high,
-          n_model = nrow(d),
+          n_model = stats::nobs(mod),
           controls = rhs
         )
     })
@@ -1278,6 +1303,7 @@ if (requireNamespace("openxlsx", quietly = TRUE)) {
 
   add_sheet("analysis_registry", analysis_registry)
   add_sheet("weights", weight_registry)
+  add_sheet("analysis_schemes", analysis_scheme_registry)
   add_sheet("score_tests", score_weighted_unweighted_tests)
   add_sheet("score_robustness", score_robustness_summary)
   add_sheet("item_tests", item_tests)

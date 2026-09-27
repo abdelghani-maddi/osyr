@@ -772,7 +772,7 @@ q13_long <- make_item_long(df, q13_vars, "response", item_map, context_vars) |>
     response_num = suppressWarnings(as.numeric(response)),
     yes = response_num == 1,
     no = response_num == 2,
-    dont_know = response_num %in% c(97, 99)
+    dont_know = response_num == 97
   )
 
 q15_long <- make_item_long(df, q15_vars, "response", item_map, context_vars) |>
@@ -798,8 +798,8 @@ df <- df |>
     score_q4_practices_research = row_prop_codes(df, q4_vars, yes_codes = 1),
     score_q5_known_well = row_prop_codes(df, q5_vars, yes_codes = c(3, 4), no_codes = c(1, 2, 3, 4)),
     score_q5_used = row_prop_codes(df, q5_vars, yes_codes = 4, no_codes = c(1, 2, 3, 4)),
-    score_q13_open_intentions = row_prop_codes(df, q13_vars, yes_codes = 1, no_codes = c(1, 2, 97, 99)),
-    score_q13_dont_know = row_prop_codes(df, q13_vars, yes_codes = c(97, 99), no_codes = c(1, 2, 97, 99)),
+    score_q13_open_intentions = row_prop_codes(df, q13_vars, yes_codes = 1, no_codes = c(1, 2, 97)),
+    score_q13_dont_know = row_prop_codes(df, q13_vars, yes_codes = 97, no_codes = c(1, 2, 97)),
     score_q12_incitation = row_prop_codes(df, q12_vars, yes_codes = c(4, 5), no_codes = c(1, 2, 3, 4, 5)),
     score_q12_frein = row_prop_codes(df, q12_vars, yes_codes = c(1, 2), no_codes = c(1, 2, 3, 4, 5)),
     score_q15_agreement = row_prop_codes(df, q15_vars, yes_codes = c(4, 5), no_codes = c(1, 2, 3, 4, 5)),
