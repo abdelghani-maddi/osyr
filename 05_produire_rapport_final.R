@@ -78,10 +78,7 @@ figure_catalog <- figure_catalog |>
   dplyr::mutate(
     section = as.integer(section),
     path = as.character(path),
-    caption = dplyr::case_when(
-      stringr::str_detect(caption, "Figure issue des sorties") ~ "Source : enquête OSYR, données pondérées.",
-      TRUE ~ as.character(caption)
-    ),
+    caption = as.character(caption),
     available = !is.na(path) & file.exists(path)
   ) |>
   dplyr::filter(available) |>
