@@ -709,7 +709,7 @@ q8_device_distribution <- q8_devices_long |>
     .groups = "drop"
   ) |>
   dplyr::mutate(
-    pct_respondents_w = weighted_n / sum(df$.weight, na.rm = TRUE),
+    pct_respondents_w = weighted_n / sum(df$.weight[!is.na(df$.weight) & df$.weight > 0], na.rm = TRUE),
     pct_respondents_w_label = safe_pct(pct_respondents_w)
   ) |>
   dplyr::arrange(dplyr::desc(pct_respondents_w))
@@ -720,12 +720,12 @@ write_table(q8_device_distribution, "q8_device_distribution_detail")
 # Correction importante : le dénominateur doit être le poids total des répondants
 # dans chaque groupe de langue, pas la somme à l'intérieur de chaque modalité Q8.
 language_totals <- df |>
-  dplyr::filter(!is.na(language_group)) |>
+  dplyr::filter(!is.na(language_group), !is.na(.weight), .weight > 0) |>
   dplyr::group_by(language_group) |>
   dplyr::summarise(total_weight_language = sum(.weight, na.rm = TRUE), .groups = "drop")
 
 q8_device_distribution_by_language <- q8_devices_long |>
-  dplyr::filter(!is.na(language_group)) |>
+  dplyr::filter(!is.na(language_group), !is.na(.weight), .weight > 0) |>
   dplyr::group_by(language_group, device_code, device_label, device_type) |>
   dplyr::summarise(
     n = dplyr::n_distinct(respondent_id),
@@ -1087,7 +1087,7 @@ if (any(discipline_label_quality$label_is_fallback, na.rm = TRUE)) {
 weighted_frequency <- function(data, var, weight = ".weight") {
   data |>
     dplyr::mutate(category = .data[[var]]) |>
-    dplyr::filter(!is.na(category), !is.na(.data[[weight]])) |>
+    dplyr::filter(!is.na(category), !is.na(.data[[weight]]), .data[[weight]] > 0) |>
     dplyr::group_by(category) |>
     dplyr::summarise(
       n = dplyr::n(),
@@ -1104,7 +1104,7 @@ weighted_frequency <- function(data, var, weight = ".weight") {
 cross_weighted <- function(data, row_var, col_var, weight = ".weight") {
   data |>
     dplyr::mutate(row_category = .data[[row_var]], col_category = .data[[col_var]]) |>
-    dplyr::filter(!is.na(row_category), !is.na(col_category), !is.na(.data[[weight]])) |>
+    dplyr::filter(!is.na(row_category), !is.na(col_category), !is.na(.data[[weight]]), .data[[weight]] > 0) |>
     dplyr::group_by(row_category, col_category) |>
     dplyr::summarise(
       n = dplyr::n(),
