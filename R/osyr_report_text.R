@@ -98,6 +98,8 @@ section_summary_text <- function(section) {
 
   if (section == 1) {
     q8 <- report_read_final("q8_device_distribution_detail")
+    q9 <- report_read_table("plan_q9_organisateurs_global")
+    q10 <- report_read_table("plan_q10_distribution_globale")
     q11 <- report_read_table("formation_evaluation_q11")
     by_year <- report_read_table("formation_exposition_par_annee")
 
@@ -119,9 +121,25 @@ section_summary_text <- function(section) {
       }
     }
 
+    if (nrow(q9) > 0) {
+      s <- sentence_from_top(
+        q9, "organizer_label", "pct_respondents_w",
+        "Parmi les répondants disposant d'une réponse Q9, les organisateurs les plus souvent cités sont : ", 4
+      )
+      if (!is.null(s)) out <- c(out, s)
+    }
+
+    if (nrow(q10) > 0 && all(c("training_intensity", "pct_w") %in% names(q10))) {
+      s <- sentence_from_top(
+        q10, "training_intensity", "pct_w",
+        "Le nombre de formations ou actions suivies se répartit principalement entre : ", 4
+      )
+      if (!is.null(s)) out <- c(out, s)
+    }
+
     s <- sentence_from_top(
       q11, "item_label", "pct_agree_w",
-      "Parmi les dimensions d'évaluation disponibles, les appréciations les plus favorables concernent : ", 3
+      "Pour Q11, les niveaux d'accord les plus élevés concernent : ", 3
     )
     if (!is.null(s)) out <- c(out, s)
 
@@ -178,6 +196,8 @@ section_summary_text <- function(section) {
 
   if (section == 4) {
     q13 <- report_read_table("intentions_q13_par_exposition")
+    q14 <- report_read_table("plan_q14_raisons_non_adoption")
+    cumul <- report_read_table("plan_cumul_formation_environnement_connaissance_usage_intentions")
 
     if (nrow(q13) > 0) {
       diff_yes <- group_difference_table(q13, "exposure2", "item_label", "pct_yes_w")
@@ -198,16 +218,49 @@ section_summary_text <- function(section) {
         if (!is.null(s)) out <- c(out, s)
       }
     }
+
+    if (nrow(q14) > 0 && all(c("reason_label", "pct_respondents_w") %in% names(q14))) {
+      q14_mean <- q14 |>
+        dplyr::group_by(reason_label) |>
+        dplyr::summarise(pct_respondents_w = mean(pct_respondents_w, na.rm = TRUE), .groups = "drop")
+      s <- sentence_from_top(
+        q14_mean, "reason_label", "pct_respondents_w",
+        "Les raisons de non-adoption les plus souvent déclarées sont : ", 4
+      )
+      if (!is.null(s)) out <- c(out, s)
+    }
+
+    if (nrow(cumul) > 0 && all(c("cumulative_support", "mean_w") %in% names(cumul))) {
+      low <- cumul |> dplyr::arrange(cumulative_support) |> dplyr::slice_head(n = 1)
+      high <- cumul |> dplyr::arrange(dplyr::desc(cumulative_support)) |> dplyr::slice_head(n = 1)
+      if (nrow(low) == 1 && nrow(high) == 1) {
+        out <- c(out, paste0(
+          "Le score moyen d'intentions passe de ",
+          fmt_pct_report(low$mean_w), " lorsque ", low$cumulative_support,
+          " condition(s) favorable(s) sont réunies à ",
+          fmt_pct_report(high$mean_w), " lorsque ", high$cumulative_support,
+          " condition(s) sont réunies ; cet indicateur reste descriptif."
+        ))
+      }
+    }
   }
 
   if (section == 5) {
     q15 <- report_read_table("perceptions_q15_par_exposition")
+    q15_overall <- report_read_table("plan_q15_accord_desaccord_global")
     q12 <- report_read_table("perceptions_q12_environnement_par_exposition")
 
-    if (nrow(q15) > 0) {
+    if (nrow(q15_overall) > 0 && all(c("item_label", "pct_agree_w") %in% names(q15_overall))) {
+      q15_mean <- q15_overall
+    } else if (nrow(q15) > 0) {
       q15_mean <- q15 |>
         dplyr::group_by(item_label) |>
         dplyr::summarise(pct_agree_w = mean(pct_agree_w, na.rm = TRUE), .groups = "drop")
+    } else {
+      q15_mean <- tibble::tibble()
+    }
+
+    if (nrow(q15_mean) > 0) {
       s <- sentence_from_top(q15_mean, "item_label", "pct_agree_w", "Les représentations recueillant le plus d'accord sont : ", 4)
       if (!is.null(s)) out <- c(out, s)
 
@@ -229,6 +282,7 @@ section_summary_text <- function(section) {
 
   if (section == 6) {
     auto <- report_read_table("profils_non_formes_autoformes_scores")
+    cah <- report_read_table("plan_cah_choix_nombre_classes")
     robust <- report_read_complement("score_robustness_summary")
 
     if (nrow(auto) > 0 && all(c("exposure3", "score_label", "mean_w") %in% names(auto))) {
@@ -247,7 +301,15 @@ section_summary_text <- function(section) {
       }
     }
 
-    out <- c(out, "La classification exploratoire est utilisée pour décrire des configurations de réponses ; elle n'est pas interprétée comme une typologie définitive des doctorants.")
+    if (nrow(cah) > 0 && all(c("k", "silhouette") %in% names(cah))) {
+      best <- cah |> dplyr::arrange(dplyr::desc(silhouette)) |> dplyr::slice_head(n = 1)
+      out <- c(out, paste0(
+        "La classification hiérarchique exploratoire retient ", best$k,
+        " classes parmi les solutions de 2 à 6 classes selon la silhouette moyenne."
+      ))
+    }
+
+    out <- c(out, "Les classifications exploratoires décrivent des configurations de réponses ; elles ne sont pas interprétées comme des catégories stables hors de l'échantillon.")
   }
 
   if (section == 7) {

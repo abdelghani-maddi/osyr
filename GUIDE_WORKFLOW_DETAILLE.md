@@ -54,6 +54,12 @@ Les observations dont `.weight` est manquant ou non positif sont exclues des ana
 
 Cette étape prépare les tables et figures utilisées dans le rapport final : trajectoires par année de thèse, croisements Q5, intentions, perceptions, profils exploratoires et diagnostics méthodologiques.
 
+## R/osyr_plan_depouillement_analyses.R
+
+Cette étape confronte les sorties au plan de dépouillement de septembre 2026 et ajoute les analyses qui n'étaient pas encore couvertes : Q9, Q10 détaillé, croisements Q11, familles Q5, liens Q4-Q5, Q14, Q7, dimensions positives/négatives de Q15, indice cumulatif, analyse des mots Q3 lorsque les réponses sont disponibles, et CAH exploratoire.
+
+Elle produit notamment `couverture_plan_depouillement_detaillee.csv`. Le statut d'un point dépend de l'existence réelle des variables et sorties, et non du nombre de graphiques.
+
 ## R/osyr_figure_polish.R
 
 Cette étape reprend les tables finales et régénère les figures destinées au rapport et à la présentation dans un format plus lisible.
@@ -76,6 +82,7 @@ Le traitement s'appuie notamment sur :
 
 - Q1 : année de thèse ;
 - Q2 : domaine scientifique principal ;
+- Q3 : mots ou expressions spontanés associés à la science ouverte, lorsque les colonnes textuelles sont présentes ;
 - Q4 : pratiques de recherche déjà réalisées ;
 - Q5 : connaissance et usage de quinze outils ou pratiques ;
 - Q7 : politique ou directives de l'établissement ;
