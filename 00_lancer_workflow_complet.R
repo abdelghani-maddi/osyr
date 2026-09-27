@@ -1,13 +1,14 @@
 # =============================================================================
 # SCRIPT 00 — LANCER LE WORKFLOW COMPLET OSYR
-# Version production finale — 21/09/2026 v2
+# Version production finale — 21/09/2026 v3
 # =============================================================================
 # Point d'entrée recommandé.
-# Le workflow distingue désormais explicitement :
+# Le workflow distingue explicitement :
 #   1. analyses principales ;
 #   2. analyses complémentaires ;
 #   3. analyses de production finale ;
-#   4. génération du rapport et de la présentation.
+#   4. polissage graphique des figures destinées aux livrables ;
+#   5. génération du rapport et de la présentation.
 # =============================================================================
 
 options(
@@ -26,6 +27,7 @@ RUN_02_RAPPORT_WORD_EXISTANT    <- FALSE
 RUN_03_ANALYSES_COMPLEMENTAIRES <- TRUE
 RUN_04_POWERPOINT_EXISTANT      <- FALSE
 RUN_FINAL_ANALYSES              <- TRUE
+RUN_FIGURE_POLISH               <- TRUE
 RUN_05_RAPPORT_FINAL            <- TRUE
 RUN_06_PRESENTATION_FINALE      <- TRUE
 RUN_99_SESSION_INFO             <- TRUE
@@ -80,6 +82,12 @@ if (RUN_04_POWERPOINT_EXISTANT) {
 
 if (RUN_FINAL_ANALYSES) {
   run_script(file.path("R", "osyr_final_analyses.R"))
+}
+
+# Cette étape reprend les tables calculées et régénère les figures principales
+# dans un format pensé pour le rapport A4 et le diaporama.
+if (RUN_FIGURE_POLISH) {
+  run_script(file.path("R", "osyr_figure_polish.R"))
 }
 
 if (RUN_05_RAPPORT_FINAL) {

@@ -63,7 +63,7 @@ has_rows <- function(x) {
 # Charte graphique ggplot
 # -----------------------------------------------------------------------------
 
-osyr_theme <- function(base_size = 11.5) {
+osyr_theme <- function(base_size = 13) {
   cols <- osyr_colors()
 
   ggplot2::theme_minimal(base_size = base_size, base_family = "sans") +
@@ -74,12 +74,12 @@ osyr_theme <- function(base_size = 11.5) {
       plot.title = ggplot2::element_text(
         face = "bold",
         color = cols[["dark_green"]],
-        size = base_size + 5.5,
+        size = base_size + 4.5,
         margin = ggplot2::margin(b = 5)
       ),
       plot.subtitle = ggplot2::element_text(
         color = cols[["grey"]],
-        size = base_size + 0.8,
+        size = base_size + 0.3,
         lineheight = 1.12,
         margin = ggplot2::margin(b = 11)
       ),
@@ -97,7 +97,7 @@ osyr_theme <- function(base_size = 11.5) {
       ),
       axis.text = ggplot2::element_text(
         color = cols[["black"]],
-        size = base_size - 0.6
+        size = base_size - 0.3
       ),
       axis.text.y = ggplot2::element_text(margin = ggplot2::margin(r = 6)),
       axis.text.x = ggplot2::element_text(margin = ggplot2::margin(t = 5)),
