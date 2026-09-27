@@ -1,89 +1,91 @@
-# Guide détaillé du workflow
+# Guide du workflow OSYR
 
 ## 00 — Script maître
 
-`00_lancer_workflow_complet.R` exécute les scripts dans l’ordre. Il est le point d’entrée recommandé.
-
-Les options en haut du fichier permettent d’éviter de relancer certaines étapes :
-
-```r
-RUN_01_ANALYSE_PRINCIPALE       <- TRUE
-RUN_02_RAPPORT_WORD             <- TRUE
-RUN_03_ANALYSES_COMPLEMENTAIRES <- TRUE
-RUN_04_POWERPOINT               <- TRUE
-```
+`00_lancer_workflow_complet.R` est le point d'entrée du traitement. Il appelle les scripts dans l'ordre prévu et permet d'activer ou de désactiver certaines étapes.
 
 ## 01 — Analyse principale
 
-`01_analyse_osyr_base_et_modeles.R` est le script le plus important.
+`01_analyse_osyr_base_et_modeles.R` assure :
 
-Il est organisé en grands blocs :
+1. la lecture de la base et de la DATAMAP ;
+2. le nettoyage des noms de variables et des libellés ;
+3. la construction des variables analytiques ;
+4. la mise au format long des batteries ;
+5. les descriptifs pondérés ;
+6. la construction des scores ;
+7. les sorties par année, discipline, langue et exposition ;
+8. les contrôles qualité.
 
-1. préparation des packages et des chemins ;
-2. fonctions générales ;
-3. lecture de la base et de la datamap ;
-4. construction de la base analytique ;
-5. contrôles qualité ;
-6. structure de l’échantillon et exposition ;
-7. tables longues des batteries ;
-8. descriptifs item par item ;
-9. écarts exposés / non exposés ;
-10. scores synthétiques ;
-11. modèles ajustés ;
-12. interactions et prédictions ;
-13. analyse textuelle des trois mots ;
-14. exports finaux.
+La DATAMAP V2 est la référence pour les libellés des questions et des modalités.
 
-### Correction importante v2
+### Pondération
 
-La fonction `plot_ranked_bar()` est désormais robuste si `item_label` est absent d’une table intermédiaire. Elle utilise alors `item`, puis `category`, puis un identifiant de ligne. Cela corrige l’erreur :
+Une seule colonne est utilisée comme poids d'enquête : `Poids`, recodée en `.weight`.
 
-```text
-object 'item_label' not found
-```
+`weight_none = 1` est une variable technique servant au scénario non pondéré. Elle ne constitue pas une pondération supplémentaire.
 
-## 02 — Rapport Word
+## 02 — Rapport Word historique
 
-`02_generer_rapport_word.R` lit les sorties du script 01 et génère un rapport analytique commenté. Il ne relance pas les analyses principales.
+`02_generer_rapport_word.R` lit les sorties du script 01. Il est conservé pour compatibilité mais n'est plus le livrable principal.
 
-## 03 — Analyses complémentaires WP2
+## 03 — Analyses complémentaires
 
-`03_analyses_complementaires_wp2_30062026.R` traduit les retours de réunion en hypothèses testables. Il documente les recodages et ajoute les tests de robustesse.
+`03_analyses_complementaires_wp2_30062026.R` ajoute :
 
-## 04 — PowerPoint
+- la comparaison pondéré / non pondéré ;
+- la comparaison discipline détaillée / discipline agrégée ;
+- les modèles ajustés sur les scores ;
+- les modèles item par item ;
+- les intervalles de confiance ;
+- la correction FDR ;
+- les diagnostics de composition des groupes ;
+- les analyses détaillées de Q8 ;
+- les synthèses de robustesse.
 
-`04_generer_presentation_powerpoint.R` produit une présentation structurée en séquences : méthode, résultats, analyses complémentaires, synthèse, prochaines étapes.
+Le script ne détecte plus automatiquement des « poids » à partir du nom des colonnes. Les seuls scénarios sont :
+
+- non pondéré : `weight_none = 1` ;
+- pondéré : `.weight`, issu de `Poids`.
+
+Les observations dont `.weight` est manquant ou non positif sont exclues des analyses pondérées.
+
+## R/osyr_final_analyses.R
+
+Cette étape prépare les tables et figures utilisées dans le rapport final : trajectoires par année de thèse, croisements Q5, intentions, perceptions, profils exploratoires et diagnostics méthodologiques.
+
+## R/osyr_figure_polish.R
+
+Cette étape reprend les tables finales et régénère les figures destinées au rapport et à la présentation dans un format plus lisible.
+
+## 05 — Rapport final
+
+`05_produire_rapport_final.R` génère le rapport principal et l'annexe graphique.
+
+## 06 — Présentation finale
+
+`06_generer_presentation_finale.R` génère le diaporama à partir de la même sélection de résultats.
 
 ## 99 — Session info
 
-`99_session_info.R` archive l’environnement logiciel pour faciliter la reproductibilité.
+`99_session_info.R` conserve les versions de R et des packages utilisés.
 
+## Variables et questions couvertes
 
-# Complément v7 — ce que fait précisément le script 03
+Le traitement s'appuie notamment sur :
 
-Le script `03_analyses_complementaires_wp2_30062026.R` est désormais structuré en sections numérotées :
+- Q1 : année de thèse ;
+- Q2 : domaine scientifique principal ;
+- Q4 : pratiques de recherche déjà réalisées ;
+- Q5 : connaissance et usage de quinze outils ou pratiques ;
+- Q7 : politique ou directives de l'établissement ;
+- Q8 : dispositifs suivis ;
+- Q9 : organismes organisateurs ;
+- Q10 : nombre de formations ou actions ;
+- Q11 : appréciation des formations ;
+- Q12 : freins et incitations ;
+- Q13 : intentions ;
+- Q14 : raisons de non-adoption ;
+- Q15 : représentations de la science ouverte.
 
-1. Packages et options.
-2. Chemins.
-3. Fonctions utilitaires.
-4. Lecture de la base enrichie produite par le script 01.
-5. Matrice de couverture des remarques WP2.
-6. Documentation enrichie des variables et regroupements.
-7. Pondérations : qualité, sensibilité, note méthodologique.
-8. Fonctions modèles et écarts avec IC.
-9. Tests item par item : exposition avec IC.
-10. Acculturation élevée quelle que soit la formation.
-11. Gap connaissance → usage, y compris chez les non exposés.
-12. Déclaratif / humilité : proxy empirique.
-13. Familles d'objets : open data, publications, code, identifiants.
-14. Scores, modèles principaux, pondérations et discipline détaillée.
-15. Croiser usages, année de thèse et pratiques Q4.
-16. Intentions : NSP, pratiques actuelles, freins et discipline.
-17. Perceptions, environnement incitatif/frein, Q7, Q12, Q15.
-18. Autoformés : profil complet.
-19. Dispositifs Q8-Q11 : détail, MOOC, distanciel, présentiel, intensité.
-20. Langue : proxy, établissement/collège, exposition, dispositifs.
-21. Trois mots : lexicométrie, dictionnaire, annotation, cadrage cognitif.
-22. Exports consolidés.
-
-La logique est que le script 01 reste le socle propre et que le script 03 serve de laboratoire méthodologique et analytique post-réunion.
+Les modalités exactes sont celles de la DATAMAP V2 placée dans `data/BJ30232 - DATAMAP V2.xlsx`.
