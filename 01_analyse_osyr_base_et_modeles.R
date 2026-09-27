@@ -575,9 +575,21 @@ df <- df_raw |>
       TRUE ~ "Autre / non classé"
     ),
 
+    q7_group = dplyr::case_when(
+      "q7" %in% names(df_raw) & suppressWarnings(as.numeric(q7)) == 1 ~ "Oui",
+      "q7" %in% names(df_raw) & suppressWarnings(as.numeric(q7)) == 2 ~ "Non",
+      "q7" %in% names(df_raw) & suppressWarnings(as.numeric(q7)) == 97 ~ "Je ne sais pas",
+      TRUE ~ NA_character_
+    ),
+
     q8_has_none = purrr::map_lgl(q8_codes_by_row, ~ 97 %in% .x),
     q8_has_organized = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% 1:4)),
     q8_has_self_or_other = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% c(5, 6, 98))),
+    q8_has_presentiel = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% c(1, 3))),
+    q8_has_distanciel = purrr::map_lgl(q8_codes_by_row, ~ any(.x %in% c(2, 4))),
+    q8_has_async = purrr::map_lgl(q8_codes_by_row, ~ 5 %in% .x),
+    q8_has_autoformation = purrr::map_lgl(q8_codes_by_row, ~ 6 %in% .x),
+    q8_has_other = purrr::map_lgl(q8_codes_by_row, ~ 98 %in% .x),
     q8_n_organized_types = purrr::map_int(q8_codes_by_row, ~ length(intersect(.x, 1:4))),
 
     exposure3 = dplyr::case_when(
@@ -619,7 +631,15 @@ df <- df_raw |>
       )
     ),
     discipline_detail = factor(discipline_detail),
-    training_intensity = factor(training_intensity)
+    q7_group = factor(q7_group, levels = c("Oui", "Non", "Je ne sais pas")),
+    training_intensity = factor(
+      training_intensity,
+      levels = c(
+        "Aucun dispositif", "Autoformation / autre seulement",
+        "1 formation/action", "2 ou 3 formations/actions",
+        "4 formations/actions ou plus", "Nombre inconnu", "Non renseigné"
+      )
+    )
   )
 
 # -----------------------------------------------------------------------------
@@ -629,6 +649,8 @@ df <- df_raw |>
 context_vars <- c(
   "respondent_id", ".weight", "weight_none", "exposure3", "exposure2",
   "exposure_organized", "training_intensity", "q8_n_organized_types",
+  "q8_has_presentiel", "q8_has_distanciel", "q8_has_async",
+  "q8_has_autoformation", "q8_has_other", "q7_group",
   "year_code", "year", "discipline_code", "discipline_detail",
   "discipline_broad", "institution", "language_group"
 )
@@ -782,12 +804,115 @@ q15_long <- make_item_long(df, q15_vars, "response", item_map, context_vars) |>
     disagree = response_num %in% c(1, 2)
   )
 
+# Q3 : trois mots ou expressions spontanés. Le format exact peut varier entre
+# exports ; on conserve les colonnes textuelles commençant par q3 sans imposer
+# une structure qui ne serait pas présente dans la base.
+q3_vars <- names(df) |>
+  stringr::str_subset("^q3($|_)") |>
+  purrr::keep(~ is.character(df[[.x]]) || is.factor(df[[.x]]))
+
+q3_long <- if (length(q3_vars) > 0) {
+  df |>
+    dplyr::select(dplyr::any_of(context_vars), dplyr::all_of(q3_vars)) |>
+    tidyr::pivot_longer(
+      cols = dplyr::all_of(q3_vars),
+      names_to = "word_slot",
+      values_to = "word_raw"
+    ) |>
+    dplyr::mutate(
+      word_raw = fix_text(word_raw),
+      word_normalized = clean_ascii(word_raw)
+    ) |>
+    dplyr::filter(!is.na(word_raw), word_raw != "")
+} else {
+  tibble::tibble()
+}
+
+# Q9 : organisateurs. Le questionnaire prévoit une question multiréponse.
+# Le code ci-dessous accepte le format par slots (q9_m1, q9_m2, ...) et, à
+# défaut, des colonnes q9_* contenant directement les codes sélectionnés.
+q9_vars <- names(df) |> stringr::str_subset("^q9($|_)")
+q9_labels <- label_tbl("q9")
+
+q9_long <- if (length(q9_vars) > 0) {
+  df |>
+    dplyr::select(dplyr::any_of(context_vars), dplyr::all_of(q9_vars)) |>
+    tidyr::pivot_longer(
+      cols = dplyr::all_of(q9_vars),
+      names_to = "q9_slot",
+      values_to = "organizer_code"
+    ) |>
+    dplyr::mutate(organizer_code = suppressWarnings(as.numeric(organizer_code))) |>
+    dplyr::filter(organizer_code %in% c(1, 2, 3, 98)) |>
+    dplyr::left_join(
+      q9_labels |> dplyr::select(organizer_code = code, organizer_label = value),
+      by = "organizer_code"
+    ) |>
+    dplyr::mutate(
+      organizer_label = dplyr::coalesce(
+        organizer_label,
+        dplyr::recode(
+          as.character(organizer_code),
+          "1" = "Unité de recherche / laboratoire",
+          "2" = "Établissement",
+          "3" = "Organisme régional ou national",
+          "98" = "Autre organisme"
+        )
+      )
+    ) |>
+    dplyr::distinct(respondent_id, organizer_code, .keep_all = TRUE)
+} else {
+  tibble::tibble()
+}
+
+# Q14 : raisons de non-adoption. Les exports peuvent utiliser des slots du type
+# q14_1_m1 ou des colonnes q14_1, q14_2, etc. On extrait le numéro de
+# l'intention concernée et le code de raison, sans imputer les non-réponses.
+q14_vars <- names(df) |> stringr::str_subset("^q14_?[1-6]($|_)")
+q14_reason_labels <- tibble::tribble(
+  ~reason_code, ~reason_label,
+  1, "Manque de temps",
+  2, "Ne sait pas comment faire",
+  3, "Pas d'intérêt",
+  4, "Crainte du plagiat",
+  5, "Données personnelles, sensibles ou confidentielles",
+  6, "Confidentialité liée à la valorisation ou au brevet",
+  98, "Autre raison",
+  97, "Non concerné"
+)
+
+q14_long <- if (length(q14_vars) > 0) {
+  df |>
+    dplyr::select(dplyr::any_of(context_vars), dplyr::all_of(q14_vars)) |>
+    tidyr::pivot_longer(
+      cols = dplyr::all_of(q14_vars),
+      names_to = "q14_item",
+      values_to = "reason_code"
+    ) |>
+    dplyr::mutate(
+      intention_index = suppressWarnings(as.integer(stringr::str_match(q14_item, "^q14_?([1-6])")[, 2])),
+      reason_code = suppressWarnings(as.numeric(reason_code))
+    ) |>
+    dplyr::filter(reason_code %in% q14_reason_labels$reason_code) |>
+    dplyr::left_join(q14_reason_labels, by = "reason_code") |>
+    dplyr::mutate(
+      intention_var = paste0("q13_a", intention_index),
+      intention_label = item_map$item_label[match(intention_var, item_map$item)]
+    ) |>
+    dplyr::distinct(respondent_id, intention_index, reason_code, .keep_all = TRUE)
+} else {
+  tibble::tibble()
+}
+
 readr::write_csv(q4_long, file.path(out_dir, "data_clean", "q4_long.csv"))
 readr::write_csv(q5_long, file.path(out_dir, "data_clean", "q5_long.csv"))
 readr::write_csv(q11_long, file.path(out_dir, "data_clean", "q11_long.csv"))
 readr::write_csv(q12_long, file.path(out_dir, "data_clean", "q12_long.csv"))
 readr::write_csv(q13_long, file.path(out_dir, "data_clean", "q13_long.csv"))
 readr::write_csv(q15_long, file.path(out_dir, "data_clean", "q15_long.csv"))
+readr::write_csv(q3_long, file.path(out_dir, "data_clean", "q3_long.csv"))
+readr::write_csv(q9_long, file.path(out_dir, "data_clean", "q9_long.csv"))
+readr::write_csv(q14_long, file.path(out_dir, "data_clean", "q14_long.csv"))
 
 # -----------------------------------------------------------------------------
 # 6. Scores synthétiques
