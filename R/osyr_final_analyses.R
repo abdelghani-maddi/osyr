@@ -158,7 +158,12 @@ weighted_score_by_group <- function(data, group_var, score_vars, weight_var = ".
   data |>
     dplyr::select(dplyr::all_of(c(group_var, weight_var, score_vars))) |>
     tidyr::pivot_longer(cols = dplyr::all_of(score_vars), names_to = "score", values_to = "value") |>
-    dplyr::filter(!is.na(.data[[group_var]]), !is.na(value)) |>
+    dplyr::filter(
+      !is.na(.data[[group_var]]),
+      !is.na(value),
+      !is.na(.data[[weight_var]]),
+      .data[[weight_var]] > 0
+    ) |>
     dplyr::group_by(group = .data[[group_var]], score) |>
     dplyr::summarise(
       n = dplyr::n(),
