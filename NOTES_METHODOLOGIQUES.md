@@ -30,6 +30,8 @@ Le fichier `response_denominator_diagnostics.csv` permet de vérifier, pour chaq
 
 Q8, Q9 et Q14 autorisent plusieurs réponses.
 
+Pour Q8, le dénominateur est constitué des répondants ayant au moins une réponse valide à la question ; une non-réponse technique n'est pas assimilée au code 97 « Aucune de ces propositions ».
+
 Les pourcentages expriment une part de répondants ayant cité chaque modalité, avec un dénominateur explicite. Ils peuvent donc dépasser 100 % lorsqu'ils sont additionnés.
 
 Les croisements entre deux questions multiréponses sont dédupliqués au niveau du répondant avant agrégation afin d'éviter la multiplication artificielle des lignes.
@@ -44,7 +46,7 @@ Trois catégories analytiques sont également construites :
 - `Autoformation / autre seulement` ;
 - `Dispositif organisé`.
 
-Les modalités 1 à 4 sont classées comme dispositifs organisés. Le parcours asynchrone/MOOC (5), l'autoformation (6) et « autres » (98) sont distingués des dispositifs organisés dans ce regroupement analytique.
+Les modalités 1 à 5 sont classées comme dispositifs organisés. Ce choix suit la DATAMAP : le code 5 est libellé « Parcours de formation asynchrone (MOOC...) » et relève donc d'une formation, même sans présence synchrone. L'autoformation (6) et « autres » (98) sont distingués des dispositifs organisés.
 
 Si « aucune de ces propositions » est sélectionnée avec une autre modalité, le profil d'exposition est classé `Indéterminé` et le cas est comptabilisé dans un diagnostic de cohérence.
 
