@@ -67,6 +67,7 @@ if (!"source_dir" %in% names(figure_catalog)) figure_catalog$source_dir <- "rapp
 if (!"priorite" %in% names(figure_catalog)) figure_catalog$priorite <- 9
 
 figure_catalog <- figure_catalog |>
+  dplyr::filter(file != "final_60_couverture_plan_depouillement.png") |>
   dplyr::mutate(
     section = as.integer(section),
     path = as.character(path),
@@ -125,11 +126,17 @@ add_text_paragraphs <- function(doc, paragraphs) {
 }
 
 figure_dimensions <- function(title, file) {
-  dense <- stringr::str_detect(
-    stringr::str_to_lower(paste(title, file)),
-    "heatmap|discipline|carte|profils|q5|q8"
-  )
-  if (dense) c(width = 6.45, height = 4.55) else c(width = 6.25, height = 3.85)
+  key <- stringr::str_to_lower(paste(title, file))
+
+  if (stringr::str_detect(key, "discipline|q5_connaissance_usage|balance_covariables|profils_acp")) {
+    return(c(width = 6.55, height = 5.35))
+  }
+
+  if (stringr::str_detect(key, "heatmap|q8|profil|environnement|robustesse")) {
+    return(c(width = 6.45, height = 5.05))
+  }
+
+  c(width = 6.35, height = 4.65)
 }
 
 add_figure_if_exists <- function(doc, path, title, caption = NULL) {
@@ -229,9 +236,15 @@ for (sec in sort(unique(plan_rapport$section))) {
     dplyr::arrange(dplyr::desc(source_dir == "rapport_final"), priorite, titre)
 
   if (nrow(figs) > 0) {
+    # Les figures principales commencent sur une nouvelle page. À partir de la
+    # deuxième figure, chaque graphique dispose de sa propre page afin que les
+    # libellés restent lisibles une fois le document affiché ou imprimé.
+    doc <- officer::body_add_break(doc)
     doc <- officer::body_add_par(doc, "Figures", style = "heading 2")
 
     for (i in seq_len(nrow(figs))) {
+      if (i > 1) doc <- officer::body_add_break(doc)
+
       doc <- add_figure_if_exists(
         doc,
         figs$path[i],
