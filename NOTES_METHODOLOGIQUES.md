@@ -80,3 +80,24 @@ Certains points ne peuvent pas être établis à partir de la base seule, notamm
 - la documentation OpinionWay relative à la précision à 85 % ;
 - l'offre effective de formations en anglais par collège doctoral ;
 - la validation définitive de l'annotation des mots associés à la science ouverte.
+
+
+## Dénominateurs et réponses manquantes
+
+Les indicateurs binaires des batteries Q4, Q5, Q11, Q12, Q13 et Q15 distinguent explicitement réponse positive, réponse négative et valeur manquante ou hors champ. Une non-réponse n'est pas transformée en réponse négative.
+
+Un diagnostic des dénominateurs est exporté dans `outputs_osyr_v2_final/diagnostics/response_denominator_diagnostics.csv`.
+
+## Cohérence de Q8
+
+La modalité « aucune de ces propositions » est incompatible avec la sélection simultanée d'une autre modalité Q8. Lorsqu'une telle combinaison est observée, le répondant est classé `Indéterminé` pour la variable synthétique d'exposition. Le nombre de cas concernés est exporté dans `q8_exposure_consistency.csv`.
+
+## Analyses multivariées exploratoires
+
+L'ACP utilisée pour les profils applique la pondération d'enquête lors du centrage, de la standardisation et de la construction de la matrice de covariance. Le K-means est ensuite appliqué aux scores standardisés et reste exploratoire. Le nombre de classes est choisi parmi 2 à 4 à partir de la silhouette moyenne.
+
+La CAH constitue une analyse exploratoire distincte. Elle ne sert pas de base à une inférence sur la population.
+
+## Contrôles d'intégrité
+
+Avant la production des figures et des livrables, `R/osyr_method_checks.R` vérifie la pondération, les bornes des scores, plusieurs relations logiques entre variables, la cohérence numérique des modèles et certains éléments du catalogue éditorial. Les erreurs critiques interrompent le workflow.
