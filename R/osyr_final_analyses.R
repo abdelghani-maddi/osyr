@@ -1,12 +1,26 @@
 # =============================================================================
-# Analyses et figures pour la production finale OSYR
+# R/osyr_final_analyses.R — ANALYSES DE SYNTHÈSE POUR LES LIVRABLES
+# Version : 27/09/2026
 # =============================================================================
-# Ce fichier est appelé par les scripts 05 et 06.
-# Il part des sorties des scripts 01 et 03 et produit une couche d'analyses
-# supplémentaires alignée sur le plan de dépouillement de septembre 2026.
+# RÔLE DANS LE WORKFLOW
+#   Troisième couche analytique. Ce script rassemble les tables issues des scripts
+#   01 et 03 et produit les analyses de synthèse utilisées dans le rapport et
+#   la présentation. Il ne remplace pas les sorties détaillées : il les organise
+#   autour des blocs du plan de dépouillement.
 #
-# Les figures produites ici ne remplacent pas les figures exploratoires : elles
-# servent à alimenter le rapport final et la présentation finale.
+# CORRESPONDANCE AVEC LE PLAN
+#   1. Parcours de formation : exposition, Q8, Q10, Q11.
+#   2. Connaissances : Q5, gap connaissance-usage, scores par année/exposition.
+#   3. Pratiques : Q4 et usage Q5.
+#   4. Intentions : Q13, incertitudes et liens connaissance-usage-intentions.
+#   5. Perceptions : Q12/Q15.
+#   6. Profils : ACP, classification et comparaison non-formés/autoformés/formés.
+#   7. Méthode : couverture interne du plan et diagnostics.
+#
+# PRINCIPE DE PUBLICATION
+#   Les résultats calculés ici restent indépendants de leur mise en forme.
+#   R/osyr_figure_polish.R régénère ensuite les figures destinées au lecteur,
+#   tandis que 05_produire_rapport_final.R sélectionne les figures principales.
 # =============================================================================
 
 options(
@@ -38,7 +52,10 @@ ensure_dir(file.path(dirs$report, "tables"))
 ensure_dir(file.path(dirs$report, "diagnostics"))
 
 # -----------------------------------------------------------------------------
-# Helpers généraux
+# Fonctions générales
+# -----------------------------------------------------------------------------
+# Fonctions de lecture, pondération, normalisation des libellés et sauvegarde.
+# Aucun résultat substantiel n'est interprété dans cette section.
 # -----------------------------------------------------------------------------
 
 clean_chr <- function(x) {
@@ -114,7 +131,7 @@ copy_existing_figures <- function() {
   catalog_available |>
     dplyr::transmute(
       section, bloc, titre,
-      caption = paste0("Figure issue des sorties ", source_dir, "."),
+      caption = purrr::map2_chr(file, source_dir, ~ osyr_publication_caption(.x, "Source : enquête OSYR ; résultats pondérés.")),
       file,
       path = report_path,
       source_dir,
@@ -184,7 +201,10 @@ multiresponse_by_group <- function(long_df, group_var, label_var = "device_label
 }
 
 # -----------------------------------------------------------------------------
-# Lecture des données et sorties existantes
+# Lecture des données et contrôle des prérequis
+# -----------------------------------------------------------------------------
+# Le script réutilise exclusivement les sorties calculées en amont. Il ne doit
+# pas recréer silencieusement une pondération ou une variable absente.
 # -----------------------------------------------------------------------------
 
 main_rds <- file.path(dirs$final, "data_clean", "osyr_v2_corrigee_clean.rds")
@@ -226,6 +246,9 @@ figure_log <- list(copy_existing_figures())
 
 # -----------------------------------------------------------------------------
 # 1. Parcours de formation
+# -----------------------------------------------------------------------------
+# Plan : part des formés/non formés, dispositifs Q8, volume Q10, évaluation Q11,
+# année de thèse et discipline. Q9 est complété dans osyr_plan_depouillement_analyses.R.
 # -----------------------------------------------------------------------------
 
 if ("exposure3" %in% names(df) && "year" %in% names(df)) {
@@ -389,6 +412,9 @@ if (has_rows(q11_long) && "agree" %in% names(q11_long)) {
 # -----------------------------------------------------------------------------
 # 2. Connaissances
 # -----------------------------------------------------------------------------
+# Plan : niveau de connaissance Q5, usages correspondants, écarts
+# connaissance-usage et comparaisons selon exposition et année de thèse.
+# -----------------------------------------------------------------------------
 
 if (has_rows(q5_long) && all(c("known_well", "used") %in% names(q5_long))) {
   q5_items <- q5_long |>
@@ -512,6 +538,9 @@ if ("year" %in% names(df)) {
 # -----------------------------------------------------------------------------
 # 3. Pratiques
 # -----------------------------------------------------------------------------
+# Plan : pratiques de recherche Q4 et usages effectifs Q5, avec comparaisons par
+# année de thèse et discipline.
+# -----------------------------------------------------------------------------
 
 if (has_rows(q4_long) && "positive" %in% names(q4_long)) {
   q4_items <- q4_long |>
@@ -579,6 +608,9 @@ if (has_rows(q5_long) && "used" %in% names(q5_long) && "year" %in% names(q5_long
 
 # -----------------------------------------------------------------------------
 # 4. Intentions et attitudes
+# -----------------------------------------------------------------------------
+# Plan : intentions Q13, « je ne sais pas », différences selon exposition et
+# articulation avec les niveaux de connaissance et d'usage.
 # -----------------------------------------------------------------------------
 
 if (has_rows(q13_long) && "yes" %in% names(q13_long)) {
@@ -682,6 +714,9 @@ if (all(c("score_q5_known_well", "score_q5_used", "score_q13_open_intentions") %
 
 # -----------------------------------------------------------------------------
 # 5. Perceptions
+# -----------------------------------------------------------------------------
+# Plan : environnement Q12 et représentations Q15. Les dimensions Q15 plus
+# fines (bénéfices, contraintes, risques) sont traitées dans la couche plan.
 # -----------------------------------------------------------------------------
 
 if (has_rows(q15_long) && "agree" %in% names(q15_long)) {
@@ -792,6 +827,9 @@ if (all(c("score_q12_incitation", "score_q12_frein", "score_q15_agreement") %in%
 
 # -----------------------------------------------------------------------------
 # 6. Profils et analyses transversales
+# -----------------------------------------------------------------------------
+# Plan : configurations de réponses et focus autoformation. L'ACP et les
+# classifications sont exploratoires et ne définissent pas de typologie externe.
 # -----------------------------------------------------------------------------
 
 profile_scores <- score_vars[score_vars %in% names(df)]
@@ -911,7 +949,10 @@ if ("exposure3" %in% names(df)) {
 }
 
 # -----------------------------------------------------------------------------
-# 7. Précautions méthodologiques
+# 7. Diagnostics méthodologiques internes
+# -----------------------------------------------------------------------------
+# Plan : contrôle de couverture et éléments de robustesse. Les graphiques de
+# suivi de production sont conservés dans les sorties mais exclus du rapport.
 # -----------------------------------------------------------------------------
 
 coverage <- osyr_final_plan_registry() |>
@@ -946,8 +987,8 @@ if (has_rows(coverage)) {
       "À compléter" = cols[["grey"]]
     ), drop = TRUE) +
     ggplot2::labs(
-      title = "Couverture du plan de dépouillement par les sorties disponibles",
-      subtitle = "Nombre de figures mobilisables par section du rapport final.",
+      title = "Suivi interne de la couverture du plan de dépouillement",
+      subtitle = "Nombre de sorties graphiques disponibles par section ; indicateur de production, non destiné au rapport.",
       x = "Nombre de figures", y = NULL
     ) +
     osyr_theme()
@@ -961,7 +1002,10 @@ if (has_rows(coverage)) {
 }
 
 # -----------------------------------------------------------------------------
-# Catalogue consolidé des figures finales
+# Catalogue consolidé des figures
+# -----------------------------------------------------------------------------
+# Le catalogue est la seule interface entre les calculs et les livrables.
+# Chaque entrée contient sa section, son titre, sa note de lecture et sa priorité.
 # -----------------------------------------------------------------------------
 
 figure_catalog_final <- dplyr::bind_rows(figure_log) |>
