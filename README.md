@@ -1,128 +1,84 @@
 # OSYR — Workflow analytique
 
-Version production finale : 21/09/2026  
-Objet : scripts R pour analyser la base OSYR V2 corrigée, produire les sorties principales et complémentaires, puis générer le rapport final et la présentation finale selon le plan de dépouillement de septembre 2026.
+Version de travail : septembre 2026
 
-## Lancement rapide
+Ce dépôt contient les scripts R utilisés pour traiter l'enquête OSYR, produire les analyses et générer les livrables.
 
-1. Ouvrir RStudio dans ce dossier.
-2. Placer les données dans `data/` :
+## Lancement
+
+Placer les deux fichiers d'entrée dans `data/` :
 
 ```text
 data/BJ30232 - BDD V2.csv
 data/BJ30232 - DATAMAP V2.xlsx
 ```
 
-3. Lancer :
+Puis lancer :
 
 ```r
 source("00_lancer_workflow_complet.R")
 ```
 
-## Ordre des scripts
+## Scripts
 
 ```text
-00_lancer_workflow_complet.R               # script maître
-01_analyse_osyr_base_et_modeles.R          # nettoyage, descriptifs, scores, figures principales
-02_generer_rapport_word.R                  # rapport analytique existant
-03_analyses_complementaires_wp2_30062026.R  # compléments, robustesse, tests et approfondissements
-04_generer_presentation_powerpoint.R       # présentation existante
-05_produire_rapport_final.R                # rapport final structuré selon le plan de dépouillement
-06_generer_presentation_finale.R           # présentation finale selon la même trame
-99_session_info.R                          # archive de l'environnement R
-R/osyr_style.R                             # couleurs, style, plan final et catalogue de figures
+00_lancer_workflow_complet.R                # orchestration
+01_analyse_osyr_base_et_modeles.R           # nettoyage, variables, scores, descriptifs
+03_analyses_complementaires_wp2_30062026.R  # modèles, robustesse, FDR, diagnostics
+R/osyr_final_analyses.R                     # analyses destinées aux livrables finaux
+R/osyr_figure_polish.R                      # mise en forme des figures finales
+05_produire_rapport_final.R                 # rapport Word
+06_generer_presentation_finale.R            # présentation
+99_session_info.R                           # environnement logiciel
 ```
 
-## Sorties produites
+Les scripts 02 et 04 correspondent aux anciennes versions du rapport Word et du PowerPoint et restent disponibles à titre de compatibilité.
+
+## Pondération
+
+La base comporte une seule variable de pondération : `Poids`.
+
+Le script 01 la transforme en `.weight`. Les analyses complémentaires comparent ensuite :
+
+- un scénario non pondéré, représenté techniquement par `weight_none = 1` ;
+- un scénario pondéré utilisant uniquement `.weight`.
+
+Aucune autre variable numérique n'est interprétée comme un poids. Les observations dont `.weight` est manquant ou non positif sont exclues des analyses pondérées.
+
+## DATAMAP
+
+`BJ30232 - DATAMAP V2.xlsx` fournit les libellés des questions, les codes et les modalités. Elle est utilisée pour reconstruire les libellés de Q1, Q2, Q4, Q5, Q7 à Q15 et pour documenter les recodages.
+
+Q2 comporte dix domaines disciplinaires détaillés. Un regroupement en quatre grands domaines est construit uniquement pour certaines analyses de robustesse.
+
+## Principales sorties
 
 ```text
-outputs_osyr_v2_final/                     # sorties principales du script 01
-outputs_osyr_v2_complements_30062026/       # analyses complémentaires du script 03
-outputs_osyr_rapport_final/                # rapport final du script 05
-outputs_osyr_presentation_finale/          # présentation finale du script 06
-outputs_osyr_v2_session/                   # infos de session du script 99
+outputs_osyr_v2_final/
+outputs_osyr_v2_complements_30062026/
+outputs_osyr_rapport_final/
+outputs_osyr_presentation_finale/
+outputs_osyr_v2_session/
 ```
 
-Les anciens dossiers `outputs_osyr_v2_rapport_word/` et `outputs_osyr_v2_ppt/` restent disponibles si les scripts 02 et 04 sont activés, mais la production finale passe désormais par les scripts 05 et 06.
-
-## Ce que fait le workflow principal
-
-- Lecture de la base et de la datamap.
-- Nettoyage des noms de variables et des encodages.
-- Recodage de l'année de thèse, de la discipline, de la langue et de l'exposition aux dispositifs.
-- Construction des tables longues pour Q4, Q5, Q8, Q12, Q13 et Q15.
-- Descriptifs pondérés.
-- Figures principales.
-- Scores synthétiques.
-- Modèles ajustés.
-- Prédictions et interactions.
-- Analyse textuelle des trois mots associés à la science ouverte.
-
-## Ce que les compléments ajoutent
-
-- Sensibilité aux pondérations, y compris sans pondération.
-- Sensibilité au regroupement disciplinaire.
-- Tests et intervalles de confiance.
-- Correction FDR pour les tests multiples.
-- Gap connaissance-usage.
-- Analyse des `je ne sais pas`, des `non` et des non-réponses.
-- Profil des autoformés et des non-formés.
-- Analyse Q8-Q11 : dispositifs, nombre de formations, MOOC, présentiel/distanciel.
-- Croisements avec langue du questionnaire, année de thèse, discipline et établissement.
-- Liens Q12 / Q13 / Q15 / Q7.
-- Lexicométrie, cadrages cognitifs et cooccurrences des trois mots.
-
-## Passage à la production finale
-
-La phase de production finale est organisée autour du plan de dépouillement de septembre 2026. Elle vise à stabiliser les sorties à utiliser dans le rapport publié.
-
-La trame retenue est :
-
-1. Parcours de formation
-2. Connaissances
-3. Pratiques
-4. Intentions et attitudes
-5. Perceptions
-6. Profils et analyses transversales
-7. Précautions méthodologiques
-
-Le fichier `R/osyr_style.R` centralise :
-
-- les couleurs OSYR ;
-- le plan du rapport ;
-- le catalogue des figures ;
-- les fonctions de style utilisées par le rapport et la présentation.
-
-Les scripts finaux produisent :
+Les livrables principaux sont :
 
 ```text
 outputs_osyr_rapport_final/rapport_final_osyr.docx
+outputs_osyr_rapport_final/annexe_graphique_osyr.docx
 outputs_osyr_presentation_finale/presentation_finale_osyr.pptx
 ```
 
-## Style OSYR
-
-Les couleurs principales utilisées dans les nouveaux scripts sont :
-
-```text
-Marron : #998A5B
-Vert principal : #7FB680
-Beige : #FEFAD4
-```
-
-Elles sont définies dans `R/osyr_style.R` et appliquées aux tableaux, graphiques et gabarits de restitution.
-
 ## Documentation
 
-Voir :
+Voir notamment :
 
 ```text
-docs/PRODUCTION_FINALE_SEPTEMBRE_2026.md
-GUIDE_WORKFLOW_DETAILLE.md
 NOTES_METHODOLOGIQUES.md
-MATRICE_COUVERTURE_REMARQUES_WP2.md
+GUIDE_WORKFLOW_DETAILLE.md
+docs/PRODUCTION_FINALE_SEPTEMBRE_2026.md
 ```
 
-## Précautions d'interprétation
+## Interprétation
 
-Les résultats sont descriptifs et associatifs. Même les modèles ajustés ne prouvent pas un effet causal des dispositifs. La langue du questionnaire doit être lue comme un proxy prudent, pas comme une nationalité. Les scores de connaissance et d'usage sont déclaratifs.
+Les analyses sont descriptives et associatives. Les modèles ajustés ne permettent pas d'attribuer causalement les différences observées aux dispositifs. Les réponses de connaissance, d'usage, de pratiques, d'intentions et de perceptions sont déclaratives.
