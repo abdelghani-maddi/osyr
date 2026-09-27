@@ -39,7 +39,7 @@ Le plan écrit « Q1 » au point consacré aux mots spontanés, mais le commenta
 | Point du plan | État après révision | Sorties principales |
 | --- | --- | --- |
 | État des pratiques Q4 | Analysé | pratiques_q4_items.csv |
-| Gap connaissance-usage Q5 | Analysé | connaissances_q5_items_gap.csv et sorties par discipline |
+| Écart connaissance-usage Q5 | Analysé | connaissances_q5_items_gap.csv et sorties par discipline |
 | Facteurs associés aux pratiques | Analysé | plan_modele_pratiques_q5_elargi.csv |
 | Rôle de la formation, du volume et du format | Analysé | plan_modele_pratiques_q5_caracteristiques_formation.csv |
 | Prendre en compte la situation de recherche Q4 | Analysé | score Q4 dans le modèle + liens ciblés Q4-Q5 |
