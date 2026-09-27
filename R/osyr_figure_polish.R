@@ -1,12 +1,24 @@
 # =============================================================================
-# Figures destinées au rapport et à la présentation OSYR
+# SCRIPT — METTRE LES FIGURES AU FORMAT DE PUBLICATION
 # Version 2026-09-27
 # =============================================================================
-# Cette étape reprend les tables calculées par le workflow. Elle ne modifie pas
-# les résultats statistiques. Les graphiques sont conçus pour rester lisibles
-# après réduction à la largeur utile d'une page Word.
+# RÔLE DANS LE WORKFLOW
+#   Reprendre exclusivement des tables déjà calculées et régénérer les figures
+#   destinées au rapport Word et au PowerPoint. Ce script ne recalcule aucun
+#   résultat statistique et ne modifie aucun dénominateur.
+#
+# CORRESPONDANCE AVEC LE PLAN
+#   Les sections 1 à 7 reprennent l'ordre du rapport : formation, connaissances,
+#   pratiques, intentions, perceptions, profils et précautions méthodologiques.
+#
+# RÈGLES ÉDITORIALES
+#   - un message visuel principal par figure ;
+#   - titres portés par Word/PowerPoint, pas répétés dans l'image ;
+#   - pas de sous-titre de production (« sortie finale », « diagnostic », etc.) ;
+#   - libellés lisibles à la largeur utile d'une page A4 ;
+#   - notes méthodologiques détaillées placées dans la légende, pas dans l'image ;
+#   - valeurs affichées seulement lorsqu'elles facilitent réellement la lecture.
 # =============================================================================
-
 options(
   scipen = 999,
   dplyr.summarise.inform = FALSE,
@@ -227,7 +239,7 @@ dumbbell_plot <- function(data, label_col, group_col, value_col,
 }
 
 # -----------------------------------------------------------------------------
-# 1. Parcours de formation
+# 1. Parcours de formation — Q8, Q10 et exposition
 # -----------------------------------------------------------------------------
 
 expo_year <- read_report_table("formation_exposition_par_annee")
@@ -280,7 +292,7 @@ if (has_rows(q8_disc) && all(c("group", "value", "pct") %in% names(q8_disc))) {
 }
 
 # -----------------------------------------------------------------------------
-# 2. Connaissances
+# 2. Connaissances — Q5 et écarts connaissance-usage
 # -----------------------------------------------------------------------------
 
 q5_items <- read_report_table("connaissances_q5_items_gap")
@@ -441,7 +453,7 @@ if (has_rows(q5_disc) && all(c("discipline_detail", "item_label") %in% names(q5_
 }
 
 # -----------------------------------------------------------------------------
-# 3. Pratiques
+# 3. Pratiques — Q4 et usages Q5
 # -----------------------------------------------------------------------------
 
 q4 <- read_report_table("pratiques_q4_items")
@@ -490,7 +502,7 @@ if (has_rows(q5_year) && all(c("year", "item_label", "pct_used_w") %in% names(q5
 }
 
 # -----------------------------------------------------------------------------
-# 4. Intentions et attitudes
+# 4. Intentions et attitudes — Q13 et articulation avec Q5
 # -----------------------------------------------------------------------------
 
 q13 <- read_report_table("intentions_q13_par_exposition")
@@ -526,7 +538,7 @@ if (has_rows(intent_grid) && all(c("knowledge_band", "usage_band", "intentions_w
 }
 
 # -----------------------------------------------------------------------------
-# 5. Perceptions
+# 5. Perceptions — Q12 et Q15
 # -----------------------------------------------------------------------------
 
 q15 <- read_report_table("perceptions_q15_par_exposition")
@@ -592,7 +604,7 @@ if (has_rows(env_grid) && all(c("incitation_band", "frein_band", "agreement_w") 
 }
 
 # -----------------------------------------------------------------------------
-# 6. Profils et analyses transversales
+# 6. Profils — analyses exploratoires et autoformation
 # -----------------------------------------------------------------------------
 
 profile_coord <- read_report_table("profils_coordonnees")
@@ -662,7 +674,7 @@ if (has_rows(auto) && all(c("exposure3", "score_label", "mean_w") %in% names(aut
 }
 
 # -----------------------------------------------------------------------------
-# 7. Robustesse et composition des groupes
+# 7. Précautions méthodologiques — robustesse et composition des groupes
 # -----------------------------------------------------------------------------
 
 robust <- read_complement_table("score_robustness_summary")
