@@ -27,13 +27,14 @@ source("00_lancer_workflow_complet.R")
 03_analyses_complementaires_wp2_30062026.R  # modèles, robustesse, FDR, diagnostics
 R/osyr_final_analyses.R                     # analyses destinées aux livrables finaux
 R/osyr_plan_depouillement_analyses.R        # audit point par point et analyses manquantes du plan
+R/osyr_method_checks.R                      # contrôles d'intégrité méthodologique
 R/osyr_figure_polish.R                      # mise en forme des figures finales
 05_produire_rapport_final.R                 # rapport Word
 06_generer_presentation_finale.R            # présentation
 99_session_info.R                           # environnement logiciel
 ```
 
-Les scripts 02 et 04 correspondent aux anciennes versions du rapport Word et du PowerPoint et restent disponibles à titre de compatibilité.
+Les scripts 02 et 04 correspondent aux anciennes versions du rapport Word et du PowerPoint. Ils sont explicitement marqués comme historiques et ne sont pas exécutés par défaut.
 
 ## Pondération
 
@@ -96,3 +97,27 @@ outputs_osyr_rapport_final/tables/couverture_plan_depouillement_detaillee.csv
 ```
 
 Elle distingue les points analysés, les analyses conditionnelles à la présence des variables et les demandes qui nécessitent une source externe. Elle ne déduit pas la couverture à partir du seul nombre de figures.
+
+
+## Contrôles méthodologiques
+
+Avant la génération des figures et des livrables, le workflow exécute `R/osyr_method_checks.R`.
+
+Le fichier suivant synthétise les vérifications :
+
+```text
+outputs_osyr_rapport_final/diagnostics/integrite_methodologique.csv
+```
+
+Les contrôles critiques portent notamment sur la pondération, les bornes des scores, les réponses Q8 contradictoires, la cohérence des batteries Q5/Q12/Q13 et la cohérence numérique des modèles. Un contrôle critique en échec interrompt la chaîne avant la production du rapport.
+
+## Correspondance avec le plan de dépouillement
+
+La documentation détaillée du code est disponible dans :
+
+```text
+docs/CODE_ET_PLAN_DEPOUILLEMENT.md
+docs/AUDIT_PLAN_DEPOUILLEMENT_SEPT2026.md
+```
+
+Le premier document indique quelle étape du code répond à chaque bloc du plan ; le second documente l'état de couverture des analyses.
