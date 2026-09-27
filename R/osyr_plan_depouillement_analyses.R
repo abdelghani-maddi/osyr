@@ -1,13 +1,23 @@
 # =============================================================================
-# Analyses complémentaires alignées sur le plan de dépouillement de septembre 2026
+# SCRIPT — COMPLÉTER ET AUDITER LE PLAN DE DÉPOUILLEMENT
 # Version 2026-09-27
 # =============================================================================
-# Cette couche complète les analyses déjà produites sans modifier leurs résultats.
-# Elle vise deux objectifs :
-#   1. documenter, point par point, la couverture du plan de dépouillement ;
-#   2. produire les analyses manquantes lorsque les variables sont disponibles.
+# RÔLE DANS LE WORKFLOW
+#   Confronter les sorties déjà calculées au plan de dépouillement de septembre
+#   2026 et produire les analyses manquantes lorsque les variables nécessaires
+#   sont disponibles dans la base.
+#
+# PRINCIPES
+#   - chaque bloc ci-dessous correspond à un point explicite du plan ;
+#   - aucune variable absente n'est reconstruite par supposition ;
+#   - les analyses multiréponses utilisent des dénominateurs au niveau répondant ;
+#   - les modèles restent associatifs et utilisent uniquement .weight ;
+#   - les analyses exploratoires (Q3, profils, CAH) sont identifiées comme telles.
+#
+# SORTIE DE CONTRÔLE
+#   outputs_osyr_rapport_final/tables/couverture_plan_depouillement_detaillee.csv
+#   Cette table distingue : analysé, partiel, non analysé et donnée externe requise.
 # =============================================================================
-
 options(scipen = 999, dplyr.summarise.inform = FALSE, readr.show_col_types = FALSE)
 
 pkgs <- c("tidyverse", "survey", "broom", "scales", "forcats", "cluster", "fs")
@@ -160,7 +170,7 @@ if (has_rows(q12_long) && all(c("respondent_id", "item_label", "response_num") %
 }
 
 # -----------------------------------------------------------------------------
-# A. Parcours de formation : Q8, Q9, Q10, Q11 et profils de formation
+# A. Parcours de formation — points 1 à 7 du plan : Q8, Q9, Q10, Q11 et profils
 # -----------------------------------------------------------------------------
 
 if ("exposure3" %in% names(df)) {
@@ -344,7 +354,7 @@ if (all(mode_flags %in% names(df)) && length(focus_scores) > 0) {
 }
 
 # -----------------------------------------------------------------------------
-# B. Connaissances : familles Q5, facteurs associés et lien avec Q4
+# B. Connaissances — points 8 à 10 : familles Q5, facteurs associés, mots Q3 et liens Q4-Q5
 # -----------------------------------------------------------------------------
 
 q5_family_person <- tibble::tibble()
@@ -483,7 +493,7 @@ if (has_rows(q4_long) && has_rows(q5_long)) {
 }
 
 # -----------------------------------------------------------------------------
-# C. Modèles élargis sur les pratiques de science ouverte
+# C. Pratiques — facteurs associés aux usages Q5 et caractéristiques de formation
 # -----------------------------------------------------------------------------
 
 fit_weighted_model <- function(data, outcome, predictors, model_name) {
@@ -534,7 +544,7 @@ if ("score_q11_training_evaluation" %in% names(df) && "score_q5_used" %in% names
 }
 
 # -----------------------------------------------------------------------------
-# D. Intentions, attitudes, discordances et Q14
+# D. Intentions et attitudes — Q13, Q14, discordances et cumul des conditions favorables
 # -----------------------------------------------------------------------------
 
 corr_vars <- c(
@@ -681,7 +691,7 @@ if (all(c("score_q5_known_well", "score_q5_used", "score_q13_open_intentions") %
 }
 
 # -----------------------------------------------------------------------------
-# E. Q7 et perceptions Q15
+# E. Perceptions — Q7, Q12 et dimensions positives, contraintes et risques de Q15
 # -----------------------------------------------------------------------------
 
 if ("q7_group" %in% names(df)) {
@@ -788,7 +798,7 @@ perception_models <- purrr::map_dfr(perception_scores, function(outcome) {
 write_plan(perception_models, "plan_modeles_perceptions_q15")
 
 # -----------------------------------------------------------------------------
-# F. Mots spontanés Q3 : fréquences et catégories dictionnaire transparentes
+# F. Mots spontanés Q3 — analyse lexicale exploratoire et dictionnaire explicite
 # -----------------------------------------------------------------------------
 
 q3_available <- has_rows(q3_long) && all(c("respondent_id", "word_normalized", ".weight") %in% names(q3_long))
@@ -929,7 +939,7 @@ if (q3_available) {
 }
 
 # -----------------------------------------------------------------------------
-# G. CAH exploratoire et caractérisation des profils
+# G. Profils — classification hiérarchique exploratoire et caractérisation
 # -----------------------------------------------------------------------------
 
 cah_scores <- c(
@@ -981,7 +991,7 @@ if (length(cah_scores) >= 5) {
 }
 
 # -----------------------------------------------------------------------------
-# H. Figures nouvelles destinées surtout à l'annexe
+# H. Figures complémentaires dérivées des analyses du plan
 # -----------------------------------------------------------------------------
 
 new_figs <- list()
@@ -998,7 +1008,7 @@ if (exists("q9_overall") && has_rows(q9_overall)) {
     ggplot2::theme(plot.title = ggplot2::element_blank(), plot.subtitle = ggplot2::element_blank())
   f <- "plan_01_q9_organisateurs.png"
   safe_save(p, f, 12.5, 6.5)
-  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 1L, bloc = "Parcours de formation", titre = "Organisateurs des formations et actions", caption = "Q9, question multiréponse ; part pondérée parmi les répondants disposant d'une réponse Q9.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
+  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 1L, bloc = "Parcours de formation", titre = "Organisateurs des formations et actions", caption = "Q9 est une question multiréponse ; les pourcentages sont calculés parmi les répondants ayant renseigné au moins un organisateur.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
 }
 
 if (exists("q14_global") && has_rows(q14_global)) {
@@ -1016,7 +1026,7 @@ if (exists("q14_global") && has_rows(q14_global)) {
     ggplot2::theme(plot.title = ggplot2::element_blank(), plot.subtitle = ggplot2::element_blank())
   f <- "plan_10_q14_raisons_non_adoption.png"
   safe_save(p, f, 12.8, 7.2)
-  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Raisons déclarées de non-adoption des pratiques", caption = "Q14, question multiréponse ; part pondérée des répondants ayant déclaré au moins une raison de non-adoption.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
+  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Raisons déclarées de non-adoption des pratiques", caption = "Q14 est une question multiréponse ; chaque motif est rapporté aux répondants ayant déclaré au moins une raison de non-adoption.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
 }
 
 if (exists("q15_overall") && has_rows(q15_overall)) {
@@ -1036,7 +1046,7 @@ if (exists("q15_overall") && has_rows(q15_overall)) {
     ggplot2::theme(plot.title = ggplot2::element_blank(), plot.subtitle = ggplot2::element_blank())
   f <- "plan_12_q15_accord_desaccord.png"
   safe_save(p, f, 13.2, 8.2)
-  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 5L, bloc = "Perceptions", titre = "Accord et désaccord avec les affirmations sur la science ouverte", caption = "Q15 ; parts pondérées d'accord et de désaccord pour chaque affirmation.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
+  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 5L, bloc = "Perceptions", titre = "Accord et désaccord avec les affirmations sur la science ouverte", caption = "Part d'accord et de désaccord avec chaque affirmation Q15.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 1L, available = TRUE)
 }
 
 if (exists("cumulative_summary") && has_rows(cumulative_summary)) {
@@ -1050,11 +1060,11 @@ if (exists("cumulative_summary") && has_rows(cumulative_summary)) {
     ggplot2::theme(plot.title = ggplot2::element_blank(), plot.subtitle = ggplot2::element_blank(), legend.position = "none")
   f <- "plan_13_cumul_et_intentions.png"
   safe_save(p, f, 10.8, 6.7)
-  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Cumul des conditions favorables et intentions", caption = "Indice descriptif combinant volume de formation, direction de thèse favorable, connaissance et usage élevés ; il ne constitue pas une mesure causale.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 3L, available = TRUE)
+  new_figs[[length(new_figs) + 1]] <- tibble::tibble(section = 4L, bloc = "Intentions et attitudes", titre = "Cumul des conditions favorables et intentions", caption = "Indice descriptif combinant volume de formation, environnement de thèse favorable, niveau de connaissance et niveau d'usage.", file = f, path = file.path(fig_dir, f), source_dir = "rapport_final", priorite = 3L, available = TRUE)
 }
 
 # -----------------------------------------------------------------------------
-# I. Matrice détaillée de couverture du plan
+# I. Audit point par point de la couverture du plan de dépouillement
 # -----------------------------------------------------------------------------
 
 status_if <- function(condition, yes = "Analysé", no = "Non analysé") if (isTRUE(condition)) yes else no
