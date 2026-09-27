@@ -10,7 +10,7 @@
 #
 # CORRESPONDANCE AVEC LE PLAN
 #   1. Parcours de formation : exposition, Q8, Q10, Q11.
-#   2. Connaissances : Q5, gap connaissance-usage, scores par année/exposition.
+#   2. Connaissances : Q5, écart connaissance-usage, scores par année/exposition.
 #   3. Pratiques : Q4 et usage Q5.
 #   4. Intentions : Q13, incertitudes et liens connaissance-usage-intentions.
 #   5. Perceptions : Q12/Q15.
