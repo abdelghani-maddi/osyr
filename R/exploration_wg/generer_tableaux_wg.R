@@ -61,7 +61,7 @@ make_book <- function(titre, aide) {
   wb
 }
 add <- function(wb, nom, table, note = NULL) {
-  key <- sprintf("T%03d", length(names(wb)) + 1L)
+  key <- sprintf("T%03d", length(openxlsx::sheets(wb)))
   openxlsx::addWorksheet(wb, key, gridLines = FALSE)
   if (!is.null(note)) openxlsx::writeData(wb, key, note, startRow = 1)
   first <- if (is.null(note)) 1L else 3L
